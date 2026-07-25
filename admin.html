@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPD Admin</title>
+  <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* CPD Webapp Light Theme Palette */
+      --bg-dark: #FAFAFC;
+      --bg-card: #FFFFFF;
+      --bg-card-hover: #F8FAFC;
+      --bg-card-alt: #F1F5F9;
+      --bg-modal: #FFFFFF;
+      
+      --text-main: #0F172A;
+      --text-muted: #475569;
+      --text-dim: #94A3B8;
+      
+      /* Primary Brand Accent: CPD Red */
+      --cpd-red: #E52E06;
+      --cpd-red-hover: #CC2500;
+      --cpd-red-light: #FFF1F0;
+      --cpd-red-border: #FFC4BC;
+      --cpd-red-glow: rgba(229, 46, 6, 0.25);
+
+      --teal-primary: #E52E06;
+      --teal-hover: #CC2500;
+      --teal-glow: rgba(229, 46, 6, 0.25);
+      
+      --gold-primary: #E52E06;
+      --gold-hover: #CC2500;
+      --gold-glow: rgba(229, 46, 6, 0.18);
+
+      --danger: #EF4444;
+      --success: #10B981;
+      
+      --border-color: #E2E8F0;
+      --border-highlight: #CBD5E1;
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+
+      --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.06);
+      --shadow-glow: 0 0 25px var(--cpd-red-glow);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* Header / Navbar */
+    header {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      background: #E52E06;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #FFFFFF;
+      font-size: 1.25rem;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      box-shadow: 0 4px 14px rgba(229, 46, 6, 0.35);
+      letter-spacing: -0.5px;
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #0F172A;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--cpd-red);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .btn-public-scheduler {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.55rem 1.1rem;
+      border-radius: 50px;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .btn-public-scheduler:hover {
+      color: var(--text-main);
+      border-color: var(--border-highlight);
+      background: var(--bg-card-hover);
+    }
+
+    .btn-logout {
+      background: var(--cpd-red-light);
+      border: 1px solid var(--cpd-red-border);
+      color: var(--cpd-red);
+      padding: 0.55rem 1.1rem;
+      border-radius: 50px;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-logout:hover {
+      background: var(--cpd-red);
+      color: #FFFFFF;
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1240px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      flex: 1;
+    }
+
+    /* Calendar Toolbar Controls */
+    .calendar-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-top-left-radius: var(--radius-lg);
+      border-top-right-radius: var(--radius-lg);
+      padding: 1.25rem 1.75rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    }
+
+    .current-month-display {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .month-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      min-width: 200px;
+    }
+
+    .nav-buttons {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-nav {
+      background: #F1F5F9;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 700;
+    }
+
+    .btn-nav:hover {
+      background: var(--cpd-red-light);
+      border-color: var(--cpd-red-border);
+      color: var(--cpd-red);
+    }
+
+    .btn-today {
+      background: var(--cpd-red-light);
+      border: 1px solid var(--cpd-red-border);
+      color: var(--cpd-red);
+      padding: 0.45rem 1.1rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-today:hover {
+      background: var(--cpd-red);
+      color: #FFFFFF;
+    }
+
+    /* Calendar Grid Container */
+    .calendar-container {
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+
+    .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .weekday {
+      padding: 0.85rem 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .calendar-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      background: var(--border-color);
+    }
+
+    .day-cell {
+      background: #FFFFFF;
+      min-height: 120px;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-sizing: border-box;
+      min-width: 0;
+    }
+
+    .day-cell.other-month {
+      background: #F8FAFC;
+      opacity: 0.5;
+    }
+
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .day-number {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .day-cell.is-today {
+      border: 2px solid var(--cpd-red);
+      background: #FFF9F8;
+    }
+
+    .day-cell.is-today .day-number {
+      background: var(--cpd-red);
+      color: #FFFFFF;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    .btn-add-session {
+      background: var(--cpd-red-light);
+      border: 1px solid var(--cpd-red-border);
+      color: var(--cpd-red);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      padding: 0;
+      box-sizing: border-box;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .btn-add-session:hover {
+      background: var(--cpd-red);
+      color: #FFFFFF;
+      transform: scale(1.1);
+    }
+
+    .session-title-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: var(--cpd-red-light);
+      border: 1px solid var(--cpd-red-border);
+      color: var(--cpd-red);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      margin-top: 0.4rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      display: block;
+    }
+
+    .teacher-count-badge {
+      font-size: 0.72rem;
+      font-weight: 800;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      color: #0F172A;
+      padding: 0.3rem 0.5rem;
+      border-radius: 6px;
+      margin-top: 0.3rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .teacher-count-badge:hover {
+      background: var(--cpd-red-light);
+      border-color: var(--cpd-red-border);
+      color: var(--cpd-red);
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 580px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+      transform: scale(0.95) translateY(10px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+      position: relative;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-overlay.active .modal-card {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.75rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #F8FAFC;
+    }
+
+    .modal-header h3 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 1.5rem;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .btn-close-modal:hover {
+      background: #F1F5F9;
+      color: var(--text-main);
+    }
+
+    .modal-body {
+      padding: 1.5rem 1.75rem;
+      overflow-y: auto;
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 1.15rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 0.4rem;
+    }
+
+    .input-control {
+      width: 100%;
+      background: #FAFAFC;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .input-control:focus {
+      border-color: var(--cpd-red);
+      box-shadow: 0 0 10px rgba(229, 46, 6, 0.2);
+      background: #FFFFFF;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: #E52E06;
+      color: #FFFFFF;
+      border: none;
+      padding: 0.9rem 1.5rem;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 14px rgba(229, 46, 6, 0.35);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: #CC2500;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(229, 46, 6, 0.45);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Booking List Card in Admin Details View */
+    .admin-spoc-card {
+      background: #F8FAFC;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.15rem;
+      margin-bottom: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .spoc-info-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .spoc-info-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .spoc-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-shrink: 0;
+    }
+
+    .btn-spoc-edit {
+      background: var(--cpd-red-light);
+      border: 1px solid var(--cpd-red-border);
+      color: var(--cpd-red);
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-spoc-edit:hover {
+      background: var(--cpd-red);
+      color: #FFFFFF;
+      transform: translateY(-1px);
+    }
+
+    .btn-spoc-delete {
+      background: #FEF2F2;
+      border: 1px solid #FCA5A5;
+      color: #EF4444;
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-spoc-delete:hover {
+      background: #EF4444;
+      color: #FFFFFF;
+      transform: translateY(-1px);
+    }
+
+    /* Animated Loading Spinner */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #FFFFFF;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 0.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* State Capsules Selector Buttons */
+    .state-capsule-btn {
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.45rem 1.1rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    }
+
+    .state-capsule-btn:hover {
+      background: var(--cpd-red-light);
+      border-color: var(--cpd-red-border);
+      color: var(--cpd-red);
+    }
+
+    .state-capsule-btn.active {
+      background: var(--cpd-red);
+      border-color: var(--cpd-red);
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px rgba(229, 46, 6, 0.35);
+    }
+
+    /* Login Overlay Modal */
+    .login-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(5, 12, 22, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .login-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .login-card {
+      background: var(--bg-modal);
+      border: 1px solid var(--border-highlight);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 440px;
+      padding: 2.25rem 2rem;
+      text-align: center;
+      box-shadow: var(--shadow-md), 0 0 50px rgba(0, 210, 196, 0.15);
+      transform: scale(0.95);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .login-overlay.active .login-card {
+      transform: scale(1);
+    }
+
+    .login-icon {
+      width: 56px;
+      height: 56px;
+      background: rgba(0, 210, 196, 0.12);
+      border: 1px solid rgba(0, 210, 196, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin: 0 auto 1.25rem auto;
+      color: var(--teal-primary);
+    }
+
+    .login-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 0.35rem;
+    }
+
+    .login-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+
+    .error-text {
+      color: var(--danger);
+      font-size: 0.8rem;
+      margin-top: 0.4rem;
+      display: none;
+    }
+
+    .error-text.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Password Protected Login Modal -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <div class="login-icon">🔒</div>
+      <h2 class="login-title">Admin Portal Login</h2>
+      <p class="login-subtitle">Enter your administrator credentials to manage CPD sessions and bookings.</p>
+      
+      <form id="adminLoginForm">
+        <div class="form-group" style="text-align: left;">
+          <label for="loginUsername">Username</label>
+          <input type="text" id="loginUsername" class="input-control" placeholder="admin" required autocomplete="off">
+        </div>
+        <div class="form-group" style="text-align: left;">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" class="input-control" placeholder="••••" required autocomplete="off">
+        </div>
+
+        <div class="error-text" id="loginErrorMsg">Invalid username or password. Please try again.</div>
+
+        <button type="submit" class="btn-submit" style="margin-top: 1.5rem;">Log In to Admin Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <a href="scheduler.html" class="brand" title="Return to Public Scheduler">
+      <div class="brand-logo">AD</div>
+      <div class="brand-text">
+        <h1>CPD Admin Dashboard</h1>
+      </div>
+    </a>
+    <div class="header-actions">
+      <button class="btn-logout" id="btnLogout">Logout</button>
+    </div>
+  </header>
+
+  <!-- Main Admin Dashboard Content -->
+  <main>
+    <section class="hero-section">
+      <div>
+        <div class="hero-badge">Administrator Control Center</div>
+        <h2 class="hero-title" style="margin-top: 0.4rem;">CPD Sessions & Booking Management</h2>
+        <p class="hero-subtitle">
+          Click the <strong>Plus (+) button</strong> on any day to configure the Session Name and Tutorial Link. Click any date summary to view or edit SPOC details.
+        </p>
+      </div>
+        <div style="font-size: 0.82rem; color: var(--text-dim); text-align: right;" id="backendStatusIndicator">
+          Status: <span style="color: var(--cpd-red); font-weight: 700;" id="statusText">Connected (Google Sheet Live)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dedicated Separate State Selector Control Section -->
+    <section class="state-selector-banner" style="margin: 1.5rem 0 1.75rem 0; background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); border: 2px solid #CBD5E1; border-radius: 20px; padding: 1.35rem 1.75rem; box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.25rem;">
+      <div>
+        <div style="font-size: 0.8rem; font-weight: 800; color: #E52E06; text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 0.4rem;">
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: #E52E06; display: inline-block; box-shadow: 0 0 8px #E52E06;"></span>
+          STATE DASHBOARD CONTROLLER
+        </div>
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: #0F172A; margin: 0.25rem 0 0 0;">
+          Select Active State Calendar
+        </h3>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+        <button class="state-capsule-btn active" data-state="UP" onclick="selectAdminState('UP')">
+          <span class="active-dot"></span> Uttar Pradesh
+        </button>
+        <button class="state-capsule-btn" data-state="GA" onclick="selectAdminState('GA')">
+          <span class="active-dot"></span> Goa
+        </button>
+        <button class="state-capsule-btn" data-state="DL" onclick="selectAdminState('DL')">
+          <span class="active-dot"></span> Delhi
+        </button>
+        <button class="state-capsule-btn" data-state="RJ" onclick="selectAdminState('RJ')">
+          <span class="active-dot"></span> Rajasthan
+        </button>
+        <button class="state-capsule-btn" data-state="GJ" onclick="selectAdminState('GJ')">
+          <span class="active-dot"></span> Gujarat
+        </button>
+      </div>
+    </section>
+
+    <!-- Calendar Controls Toolbar -->
+    <div class="calendar-toolbar">
+      <div class="current-month-display">
+        <h2 class="month-title" id="monthYearDisplay">July 2026</h2>
+        <div class="nav-buttons">
+          <button class="btn-nav" id="btnPrevMonth" title="Previous Month">&lt;</button>
+          <button class="btn-today" id="btnToday">Today</button>
+          <button class="btn-nav" id="btnNextMonth" title="Next Month">&gt;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendar Grid -->
+    <div class="calendar-container">
+      <div class="calendar-weekdays">
+        <div class="weekday">Sun</div>
+        <div class="weekday">Mon</div>
+        <div class="weekday">Tue</div>
+        <div class="weekday">Wed</div>
+        <div class="weekday">Thu</div>
+        <div class="weekday">Fri</div>
+        <div class="weekday">Sat</div>
+      </div>
+      <div class="calendar-days" id="adminCalendarDaysGrid">
+        <!-- Rendered dynamically by JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: Configure Date Session Name & Tutorial Link (Triggered by + Button) -->
+  <div class="modal-overlay" id="configSessionModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>
+          <svg width="20" height="20" fill="none" stroke="var(--teal-primary)" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 4v16m8-8H4"/>
+          </svg>
+          Configure Session for <span id="configModalDateLabel">Date</span>
+        </h3>
+        <button class="btn-close-modal" data-modal="configSessionModal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="configSessionForm">
+          <input type="hidden" id="configDateKey">
+
+          <div class="form-group" style="margin-bottom: 1.15rem;">
+            <div style="font-size: 0.78rem; font-weight: 800; color: var(--cpd-red); text-transform: uppercase; margin-bottom: 0.35rem;">Target State (Auto-Selected)</div>
+            <div id="displayConfigStateBadge" style="background: #FFF1F0; border: 1px solid #FFC4BC; color: var(--cpd-red); padding: 0.75rem 1rem; border-radius: 8px; font-weight: 800; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+              📍 Uttar Pradesh (UP)
+            </div>
+            <input type="hidden" id="selectConfigState" value="UP">
+          </div>
+
+          <div class="form-group">
+            <label for="inputConfigSessionName">Session Name / Title</label>
+            <input type="text" id="inputConfigSessionName" class="input-control" placeholder="e.g. Series 1 - Session 2 (Digital Literacy)" required>
+          </div>
+
+          <div class="form-group">
+            <label for="inputConfigTutorialLink">Tutorial / Teams Meeting Link</label>
+            <input type="url" id="inputConfigTutorialLink" class="input-control" placeholder="https://teams.microsoft.com/l/meetup-join/..." required>
+          </div>
+
+          <div class="form-group" style="margin-top: 1.25rem;">
+            <label for="selectConfigSlotStatus" style="font-weight: 700; color: var(--cpd-red); display: block; margin-bottom: 0.4rem;">Slot Status & Availability</label>
+            <select id="selectConfigSlotStatus" class="input-control" style="background: #FAFAFC; color: #0F172A; font-weight: 700; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; width: 100%; font-size: 0.92rem; cursor: pointer;">
+              <option value="SCHEDULE" style="background: #FFFFFF; color: #00897B; font-weight: 700;">🟢 SCHEDULE — Open for Booking</option>
+              <option value="FILLING_FAST" style="background: #FFFFFF; color: #D97706; font-weight: 700;">🟠 FILLING FAST — Slot will be full shortly</option>
+              <option value="SLOT_FULL" style="background: #FFFFFF; color: #DC2626; font-weight: 700;">🔴 SLOT IS FULL / BLOCKED — Blocked (No new bookings allowed)</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn-submit" id="btnSaveConfig" style="margin-top: 1.5rem;">
+            <span id="btnSaveConfigText">Save Session Configuration</span>
+            <div class="spinner" id="btnSaveConfigSpinner" style="display: none;"></div>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: View & Edit Bookings for Date -->
+  <div class="modal-overlay" id="viewBookingsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>
+          <svg width="20" height="20" fill="none" stroke="var(--gold-primary)" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+          </svg>
+          Bookings & SPOC Details for <span id="viewModalDateLabel">Date</span>
+        </h3>
+        <button class="btn-close-modal" data-modal="viewBookingsModal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Session Title Banner -->
+        <div style="background: rgba(0, 210, 196, 0.08); border: 1px solid rgba(0, 210, 196, 0.25); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.15rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+          <div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Session Name</div>
+            <div style="font-size: 1rem; font-weight: 800; color: var(--teal-primary); margin-top: 0.15rem;" id="viewSessionTitle">No Session Title Configured</div>
+          </div>
+          <div style="font-size: 0.75rem; background: rgba(0, 210, 196, 0.15); color: var(--teal-primary); padding: 0.25rem 0.6rem; border-radius: 4px; font-weight: 700;">CPD Session</div>
+        </div>
+
+        <!-- 2 Side-by-Side Summary Stat Boxes -->
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem;">
+          <!-- Box 1: Total Teachers -->
+          <div style="flex: 1; background: linear-gradient(135deg, rgba(245, 166, 35, 0.15) 0%, rgba(229, 169, 0, 0.08) 100%); border: 1px solid rgba(245, 166, 35, 0.4); padding: 1.1rem 1.25rem; border-radius: 10px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Total Teachers</div>
+            <div style="font-size: 1.6rem; font-weight: 800; color: var(--gold-primary); margin-top: 0.25rem;" id="viewTotalTeachersCount">👨‍🏫 0</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem;">Summed from all SPOCs</div>
+          </div>
+
+          <!-- Box 2: Total Schools -->
+          <div style="flex: 1; background: linear-gradient(135deg, rgba(0, 210, 196, 0.12) 0%, rgba(0, 180, 168, 0.06) 100%); border: 1px solid rgba(0, 210, 196, 0.35); padding: 1.1rem 1.25rem; border-radius: 10px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Total Schools</div>
+            <div style="font-size: 1.6rem; font-weight: 800; color: var(--teal-primary); margin-top: 0.25rem;" id="viewTotalSchoolsCount">🏫 0</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem;">Registered for this date</div>
+          </div>
+        </div>
+
+        <div id="viewBookingsListContainer">
+          <!-- Dynamically populated SPOC Cards with full details & edit/delete options -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Edit SPOC Booking Details (Triggered by ✏️ Edit Icon) -->
+  <div class="modal-overlay" id="editBookingModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>✏️ Edit SPOC Booking Details</h3>
+        <button class="btn-close-modal" data-modal="editBookingModal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="editBookingForm">
+          <input type="hidden" id="editBookingIndex">
+          <input type="hidden" id="editBookingDateKey">
+
+          <div class="form-group">
+            <label for="editSpocName">SPOC Name</label>
+            <input type="text" id="editSpocName" class="input-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="editSpocPhone">SPOC Phone</label>
+            <input type="tel" id="editSpocPhone" class="input-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="editSpocEmail">SPOC Email</label>
+            <input type="email" id="editSpocEmail" class="input-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="editSchoolName">School Name</label>
+            <input type="text" id="editSchoolName" class="input-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="editTotalTeachers">Total Teachers Attending</label>
+            <input type="number" id="editTotalTeachers" class="input-control" min="1" required>
+          </div>
+
+          <button type="submit" class="btn-submit" id="btnSaveEditBooking">
+            <span id="btnSaveEditBookingText">Save Booking Changes</span>
+            <div class="spinner" id="btnSaveEditBookingSpinner" style="display: none;"></div>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Application JavaScript Logic -->
+  <script>
+    /**
+     * CPD Admin Portal Logic
+     * Features: Memory-based Auth (admin / 7777), Plus (+) icon session setup, Teacher Count summaries, ✏️ Edit Booking modal
+     */
+
+    let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUTaKgdOHXTShNzOHMhIXWaop8J-yiwbDPg677S9wEGpDUSs9zm5NRQE6wlUAcz5kK/exec';
+    localStorage.setItem('cpd_scheduler_apps_script_url', APPS_SCRIPT_URL);
+
+    // Application State with localStorage persistence across page reloads
+    let currentDate = new Date();
+    // Clean up any legacy cached demo data
+    try {
+      const c1 = localStorage.getItem('cpd_admin_session_configs');
+      const c2 = localStorage.getItem('cpd_admin_bookings');
+      if ((c1 && c1.includes('Delhi Public')) || (c2 && c2.includes('Delhi Public'))) {
+        localStorage.removeItem('cpd_admin_session_configs');
+        localStorage.removeItem('cpd_admin_bookings');
+      }
+    } catch (e) {}
+
+    let adminSessionConfigs = JSON.parse(localStorage.getItem('cpd_admin_session_configs') || '{}');
+    let adminBookings = JSON.parse(localStorage.getItem('cpd_admin_bookings') || '{}');
+
+    let currentAdminState = 'UP';
+
+    window.selectAdminState = function(stateCode) {
+      currentAdminState = stateCode;
+      document.querySelectorAll('.state-capsule-btn').forEach(btn => {
+        if (btn.getAttribute('data-state') === stateCode) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      renderAdminCalendar();
+    };
+
+    // IIFE Secure Auth Handler
+    (function initAuth() {
+      const loginForm = document.getElementById('adminLoginForm');
+      const loginOverlay = document.getElementById('loginOverlay');
+      const loginErrorMsg = document.getElementById('loginErrorMsg');
+      const btnLogout = document.getElementById('btnLogout');
+
+      // Check Session Storage flag
+      if (sessionStorage.getItem('cpd_admin_logged_in') === 'true') {
+        loginOverlay.classList.remove('active');
+      } else {
+        loginOverlay.classList.add('active');
+      }
+
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const userVal = document.getElementById('loginUsername').value.trim();
+        const passVal = document.getElementById('loginPassword').value.trim();
+
+        if (userVal === 'admin' && passVal === '7777') {
+          sessionStorage.setItem('cpd_admin_logged_in', 'true');
+          loginOverlay.classList.remove('active');
+          loginErrorMsg.classList.remove('visible');
+          loginForm.reset();
+        } else {
+          loginErrorMsg.classList.add('visible');
+        }
+      });
+
+      btnLogout.addEventListener('click', () => {
+        sessionStorage.removeItem('cpd_admin_logged_in');
+        loginOverlay.classList.add('active');
+      });
+    })();
+
+    // Main Init with Sub-Second Real-Time Live Sync & Auto-Polling
+    document.addEventListener('DOMContentLoaded', () => {
+      renderAdminCalendar();
+      fetchAdminData().then(() => renderAdminCalendar());
+      setupAdminEventListeners();
+
+      // 1. Cross-Tab Broadcast Channel Instant Sync (< 10ms response!)
+      try {
+        if (window.BroadcastChannel) {
+          const syncChannel = new BroadcastChannel('cpd_live_sync');
+          syncChannel.onmessage = (e) => {
+            adminBookings = JSON.parse(localStorage.getItem('cpd_admin_bookings') || '{}');
+            adminSessionConfigs = JSON.parse(localStorage.getItem('cpd_admin_session_configs') || '{}');
+            renderAdminCalendar();
+
+            // Refresh open details modal if active
+            const viewModal = document.getElementById('viewBookingsModal');
+            if (viewModal && viewModal.classList.contains('active') && e && e.data && e.data.sessionDate) {
+              openViewBookingsModal(e.data.sessionDate);
+            }
+          };
+        }
+      } catch (err) {}
+
+      // 2. Storage Event Listener (Instant tab sync across browser windows)
+      window.addEventListener('storage', (e) => {
+        adminBookings = JSON.parse(localStorage.getItem('cpd_admin_bookings') || '{}');
+        adminSessionConfigs = JSON.parse(localStorage.getItem('cpd_admin_session_configs') || '{}');
+        renderAdminCalendar();
+      });
+
+      // 3. Smart Auto-Polling every 4 seconds (ONLY updates DOM if data actually changed!)
+      setInterval(() => {
+        fetchAdminData();
+      }, 4000);
+    });
+
+    let lastAdminDataHash = '';
+
+    /**
+     * Fetch Admin Data & Bookings from Google Apps Script Web App
+     */
+    async function fetchAdminData() {
+      if (!APPS_SCRIPT_URL.trim()) return;
+
+      try {
+        const response = await fetch(APPS_SCRIPT_URL + '?action=getAdminData', {
+          method: 'GET'
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result && result.status === 'success') {
+            const currentHash = JSON.stringify(result);
+            if (currentHash !== lastAdminDataHash) {
+              lastAdminDataHash = currentHash;
+              if (result.sessionConfigs) {
+                adminSessionConfigs = Object.assign({}, adminSessionConfigs, result.sessionConfigs);
+                localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
+              }
+              if (result.bookings) {
+                adminBookings = Object.assign({}, adminBookings, result.bookings);
+                localStorage.setItem('cpd_admin_bookings', JSON.stringify(adminBookings));
+              }
+              renderAdminCalendar();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Admin backend fetch note:', err);
+      }
+    }
+
+    function renderAdminCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      document.getElementById('monthYearDisplay').textContent = `${monthNames[month]} ${year}`;
+
+      const grid = document.getElementById('adminCalendarDaysGrid');
+      grid.innerHTML = '';
+
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      const prevMonthTotalDays = new Date(year, month, 0).getDate();
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Trailing Days
+      for (let i = firstDayIndex - 1; i >= 0; i--) {
+        const prevDayNum = prevMonthTotalDays - i;
+        const dayCell = document.createElement('div');
+        dayCell.className = 'day-cell other-month';
+        dayCell.innerHTML = `<div class="day-header"><span class="day-number">${prevDayNum}</span></div>`;
+        grid.appendChild(dayCell);
+      }
+
+      // Current Month Days
+      for (let day = 1; day <= totalDays; day++) {
+        const cellDate = new Date(year, month, day);
+        cellDate.setHours(0, 0, 0, 0);
+        
+        const dateStr = formatDateKey(year, month + 1, day);
+        const isToday = (cellDate.getTime() === today.getTime());
+
+        const dayCell = document.createElement('div');
+        dayCell.className = 'day-cell' + (isToday ? ' is-today' : '');
+
+        // Header with Plus (+) button on every date cell for Admin!
+        let cellHTML = `
+          <div class="day-header">
+            <span class="day-number">${day}</span>
+            <button class="btn-add-session" title="Configure Session / Meeting Link" onclick="openConfigSessionModal('${dateStr}')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        `;
+
+        // Check state-specific session configs for this date
+        let config = null;
+        if (currentAdminState !== 'ALL') {
+          config = adminSessionConfigs[currentAdminState + '_' + dateStr] || adminSessionConfigs[dateStr];
+        } else {
+          // Look for any configured state session on date
+          const stateKeys = ['UP', 'GA', 'DL', 'RJ', 'GJ'];
+          for (let st of stateKeys) {
+            if (adminSessionConfigs[st + '_' + dateStr]) {
+              config = adminSessionConfigs[st + '_' + dateStr];
+              break;
+            }
+          }
+          if (!config) config = adminSessionConfigs[dateStr];
+        }
+
+        if (config && config.sessionName) {
+          let statusBadge = '';
+          if (config.slotStatus === 'SLOT_FULL') {
+            statusBadge = '<span style="color: #DC2626; font-weight: 800; font-size: 0.65rem;">[🔴 FULL / BLOCKED]</span> ';
+          } else if (config.slotStatus === 'FILLING_FAST') {
+            statusBadge = '<span style="color: #D97706; font-weight: 800; font-size: 0.65rem;">[🟠 FILLING FAST]</span> ';
+          } else {
+            statusBadge = '<span style="color: #00897B; font-weight: 800; font-size: 0.65rem;">[🟢 SCHEDULE]</span> ';
+          }
+
+          const stTag = config.state ? `<span style="background: #E2E8F0; color: #334155; font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 800; margin-right: 0.2rem;">${config.state}</span>` : '';
+
+          cellHTML += `
+            <div class="session-title-badge" title="${escapeHtml(config.sessionName)}" onclick="openConfigSessionModal('${dateStr}', '${config.state || currentAdminState}')">
+              ${stTag}${statusBadge}${escapeHtml(config.sessionName)}
+            </div>
+          `;
+        }
+
+        // Check bookings & total teacher count for this date & state
+        let list = [];
+        if (currentAdminState !== 'ALL') {
+          list = adminBookings[currentAdminState + '_' + dateStr] || adminBookings[dateStr] || [];
+        } else {
+          list = adminBookings[dateStr] || [];
+          ['UP', 'GA', 'DL', 'RJ', 'GJ'].forEach(st => {
+            if (adminBookings[st + '_' + dateStr]) {
+              list = list.concat(adminBookings[st + '_' + dateStr]);
+            }
+          });
+        }
+
+        if (list.length > 0) {
+          let totalTeachersOnDate = 0;
+          list.forEach(b => {
+            const cnt = parseInt(b.totalTeachers, 10);
+            totalTeachersOnDate += (isNaN(cnt) || cnt <= 0) ? 1 : cnt;
+          });
+
+          cellHTML += `
+            <div class="teacher-count-badge" onclick="openViewBookingsModal('${dateStr}')">
+              <span>👥 ${totalTeachersOnDate} Teachers</span>
+              <span style="font-size: 0.65rem; text-decoration: underline;">View (${list.length})</span>
+            </div>
+          `;
+        }
+
+        dayCell.innerHTML = cellHTML;
+        grid.appendChild(dayCell);
+      }
+
+      // Leading Days
+      const totalCellsRendered = firstDayIndex + totalDays;
+      const nextDaysNeeded = (totalCellsRendered > 35 ? 42 : 35) - totalCellsRendered;
+
+      for (let j = 1; j <= nextDaysNeeded; j++) {
+        const dayCell = document.createElement('div');
+        dayCell.className = 'day-cell other-month';
+        dayCell.innerHTML = `<div class="day-header"><span class="day-number">${j}</span></div>`;
+        grid.appendChild(dayCell);
+      }
+    }
+
+    // Modal Triggers
+    window.openConfigSessionModal = function(dateStr, targetState = null) {
+      document.getElementById('configModalDateLabel').textContent = formatHumanDate(dateStr);
+      document.getElementById('configDateKey').value = dateStr;
+
+      const activeSt = targetState || (currentAdminState !== 'ALL' ? currentAdminState : 'UP');
+      document.getElementById('selectConfigState').value = activeSt;
+
+      const stateLabels = { 'UP': 'Uttar Pradesh (UP)', 'GA': 'Goa (GA)', 'DL': 'Delhi (DL)', 'RJ': 'Rajasthan (RJ)', 'GJ': 'Gujarat (GJ)' };
+      const badgeEl = document.getElementById('displayConfigStateBadge');
+      if (badgeEl) badgeEl.innerHTML = '📍 ' + (stateLabels[activeSt] || activeSt);
+
+      const existingConfig = adminSessionConfigs[activeSt + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
+      document.getElementById('inputConfigSessionName').value = existingConfig.sessionName || '';
+      document.getElementById('inputConfigTutorialLink').value = existingConfig.tutorialLink || '';
+      document.getElementById('selectConfigSlotStatus').value = existingConfig.slotStatus || 'SCHEDULE';
+
+      openModal('configSessionModal');
+    };
+
+    window.openViewBookingsModal = function(dateStr) {
+      document.getElementById('viewModalDateLabel').textContent = formatHumanDate(dateStr);
+      
+      const activeSt = (currentAdminState !== 'ALL' ? currentAdminState : 'UP');
+      const stKey = activeSt + '_' + dateStr;
+
+      const config = adminSessionConfigs[stKey] || adminSessionConfigs[dateStr] || {};
+      document.getElementById('viewSessionTitle').textContent = config.sessionName || 'No Session Title Configured';
+
+      const list = adminBookings[stKey] || [];
+      let totalTeachers = 0;
+      list.forEach(b => {
+        const cnt = parseInt(b.totalTeachers, 10);
+        totalTeachers += (isNaN(cnt) || cnt <= 0) ? 1 : cnt;
+      });
+
+      document.getElementById('viewTotalTeachersCount').textContent = `👨‍🏫 ${totalTeachers} Teachers`;
+      document.getElementById('viewTotalSchoolsCount').textContent = `🏫 ${list.length} ${list.length === 1 ? 'School' : 'Schools'}`;
+
+      const container = document.getElementById('viewBookingsListContainer');
+      if (list.length === 0) {
+        container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No school bookings registered for this date yet.</div>`;
+      } else {
+        container.innerHTML = list.map((item, idx) => {
+          const tCount = (item.totalTeachers && item.totalTeachers !== 'undefined' && !isNaN(parseInt(item.totalTeachers, 10))) ? parseInt(item.totalTeachers, 10) : 1;
+          const sName = (item.spocName && item.spocName !== 'undefined') ? item.spocName : item.schoolName;
+          const sPhone = (item.spocPhone && item.spocPhone !== 'undefined') ? item.spocPhone : 'N/A';
+          const sEmail = (item.spocEmail && item.spocEmail !== 'undefined') ? item.spocEmail : 'N/A';
+
+          return `
+            <div class="admin-spoc-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; margin-bottom: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <div style="font-size: 1rem; font-weight: 700; color: var(--text-main);">${escapeHtml(item.schoolName)}</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.3rem;">
+                  👤 SPOC: <strong style="color: var(--text-main);">${escapeHtml(sName)}</strong> &bull; 📞 ${escapeHtml(sPhone)} &bull; ✉️ ${escapeHtml(sEmail)}
+                </div>
+                <div style="font-size: 0.82rem; color: var(--gold-primary); font-weight: 700; margin-top: 0.4rem; background: rgba(245, 166, 35, 0.1); padding: 0.25rem 0.6rem; border-radius: 4px; display: inline-block;">
+                  👨‍🏫 ${tCount} Teachers Attending
+                </div>
+              </div>
+              <div class="spoc-actions">
+                <button class="btn-spoc-edit" title="Edit SPOC Booking Details" onclick="openEditBookingModal('${dateStr}', ${idx})">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  <span>Edit</span>
+                </button>
+                <button class="btn-spoc-delete" title="Delete Booking" onclick="deleteBooking('${dateStr}', ${idx})">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                  </svg>
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      openModal('viewBookingsModal');
+    };
+
+    window.openEditBookingModal = function(dateStr, index) {
+      const activeSt = (currentAdminState !== 'ALL' ? currentAdminState : 'UP');
+      const stKey = activeSt + '_' + dateStr;
+      const list = adminBookings[stKey] || adminBookings[dateStr] || [];
+      const item = list[index];
+      if (!item) return;
+
+      document.getElementById('editBookingDateKey').value = dateStr;
+      document.getElementById('editBookingIndex').value = index;
+
+      document.getElementById('editSpocName').value = item.spocName || '';
+      document.getElementById('editSpocPhone').value = item.spocPhone || '';
+      document.getElementById('editSpocEmail').value = item.spocEmail || '';
+      document.getElementById('editSchoolName').value = item.schoolName || '';
+      document.getElementById('editTotalTeachers').value = item.totalTeachers || '';
+
+      openModal('editBookingModal');
+    };
+
+    window.deleteBooking = async function(dateStr, index) {
+      if (!confirm('Are you sure you want to delete this school booking?')) return;
+
+      const activeSt = (currentAdminState !== 'ALL' ? currentAdminState : 'UP');
+      const stKey = activeSt + '_' + dateStr;
+
+      if (adminBookings[stKey]) {
+        adminBookings[stKey].splice(index, 1);
+        if (adminBookings[stKey].length === 0) delete adminBookings[stKey];
+      }
+      if (adminBookings[dateStr]) {
+        adminBookings[dateStr].splice(index, 1);
+        if (adminBookings[dateStr].length === 0) delete adminBookings[dateStr];
+      }
+      localStorage.setItem('cpd_admin_bookings', JSON.stringify(adminBookings));
+
+      if (APPS_SCRIPT_URL.trim()) {
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'deleteBooking', sessionDate: dateStr, index: index })
+          });
+        } catch (e) {
+          console.warn('Backend delete notification error:', e);
+        }
+      }
+
+      renderAdminCalendar();
+      openViewBookingsModal(dateStr);
+    };
+
+    function setupAdminEventListeners() {
+      document.getElementById('btnPrevMonth').addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderAdminCalendar();
+      });
+
+      document.getElementById('btnNextMonth').addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderAdminCalendar();
+      });
+
+      document.getElementById('btnToday').addEventListener('click', () => {
+        currentDate = new Date();
+        renderAdminCalendar();
+      });
+
+      // Save Session Config (triggered by + button modal form)
+      document.getElementById('configSessionForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnSaveConfig');
+        const btnText = document.getElementById('btnSaveConfigText');
+        const btnSpinner = document.getElementById('btnSaveConfigSpinner');
+
+        if (btn) btn.disabled = true;
+        if (btnText) btnText.textContent = 'Saving...';
+        if (btnSpinner) btnSpinner.style.display = 'inline-block';
+
+        const dateStr = document.getElementById('configDateKey').value;
+        const state = document.getElementById('selectConfigState').value || 'UP';
+        const sessionName = document.getElementById('inputConfigSessionName').value.trim();
+        const tutorialLink = document.getElementById('inputConfigTutorialLink').value.trim();
+        const slotStatus = document.getElementById('selectConfigSlotStatus').value;
+
+        const configObj = { sessionName, tutorialLink, slotStatus, state };
+        adminSessionConfigs[state + '_' + dateStr] = configObj;
+        adminSessionConfigs[dateStr] = configObj;
+        localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
+
+        if (APPS_SCRIPT_URL.trim()) {
+          try {
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'saveSessionConfig',
+                sessionDate: dateStr,
+                state: state,
+                sessionName,
+                tutorialLink,
+                slotStatus
+              })
+            });
+          } catch (err) {
+            console.warn('Backend session config save error:', err);
+          }
+        }
+
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Save Session Configuration';
+        if (btnSpinner) btnSpinner.style.display = 'none';
+
+        closeModal('configSessionModal');
+        renderAdminCalendar();
+      });
+
+      // Save Edit Booking Changes (triggered by ✏️ edit icon form)
+      document.getElementById('editBookingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnSaveEditBooking');
+        const btnText = document.getElementById('btnSaveEditBookingText');
+        const btnSpinner = document.getElementById('btnSaveEditBookingSpinner');
+
+        if (btn) btn.disabled = true;
+        if (btnText) btnText.textContent = 'Updating...';
+        if (btnSpinner) btnSpinner.style.display = 'inline-block';
+
+        const dateStr = document.getElementById('editBookingDateKey').value;
+        const index = parseInt(document.getElementById('editBookingIndex').value, 10);
+
+        const updatedItem = {
+          spocName: document.getElementById('editSpocName').value.trim(),
+          spocPhone: document.getElementById('editSpocPhone').value.trim(),
+          spocEmail: document.getElementById('editSpocEmail').value.trim(),
+          schoolName: document.getElementById('editSchoolName').value.trim(),
+          totalTeachers: parseInt(document.getElementById('editTotalTeachers').value, 10)
+        };
+
+        const activeSt = (currentAdminState !== 'ALL' ? currentAdminState : 'UP');
+        const stKey = activeSt + '_' + dateStr;
+
+        if (adminBookings[stKey] && adminBookings[stKey][index]) {
+          adminBookings[stKey][index] = { ...adminBookings[stKey][index], ...updatedItem };
+        }
+        if (adminBookings[dateStr] && adminBookings[dateStr][index]) {
+          adminBookings[dateStr][index] = { ...adminBookings[dateStr][index], ...updatedItem };
+        }
+        localStorage.setItem('cpd_admin_bookings', JSON.stringify(adminBookings));
+
+        if (APPS_SCRIPT_URL.trim()) {
+          try {
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'updateBooking',
+                sessionDate: dateStr,
+                index: index,
+                bookingData: updatedItem
+              })
+            });
+          } catch (err) {
+            console.warn('Backend update booking error:', err);
+          }
+        }
+
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Save Booking Changes';
+        if (btnSpinner) btnSpinner.style.display = 'none';
+
+        closeModal('editBookingModal');
+        renderAdminCalendar();
+        openViewBookingsModal(dateStr);
+      });
+
+      // Modal Closures
+      document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) closeModal(overlay.id);
+        });
+      });
+
+      document.querySelectorAll('.btn-close-modal').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetModal = btn.getAttribute('data-modal');
+          if (targetModal) closeModal(targetModal);
+        });
+      });
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    function formatDateKey(year, month, day) {
+      const m = month < 10 ? '0' + month : month;
+      const d = day < 10 ? '0' + day : day;
+      return `${year}-${m}-${d}`;
+    }
+
+    function formatHumanDate(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, function(m) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m];
+      });
+    }
+  </script>
+</body>
+</html>
