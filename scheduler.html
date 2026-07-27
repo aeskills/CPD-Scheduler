@@ -1631,27 +1631,55 @@
         </div>
 
         <div style="font-size: 0.95rem; font-weight: 800; color: #0F172A; margin-bottom: 0.85rem;">
-          Register Your School for this CPD Session
+          Register for this CPD Session
+        </div>
+
+        <!-- Registrant Role Segmented Toggle -->
+        <div style="margin-bottom: 1.25rem;">
+          <div style="font-size: 0.78rem; font-weight: 800; color: #64748B; text-transform: uppercase; margin-bottom: 0.4rem; letter-spacing: 0.5px;">
+            Registering As <span style="color: #E52E06;">*</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; background: #F1F5F9; padding: 0.3rem; border-radius: 10px; border: 1px solid #E2E8F0;">
+            <button
+              type="button"
+              id="btnRoleSpoc"
+              class="role-toggle-btn active"
+              onclick="selectRegistrantRole('SPOC')"
+              style="flex: 1; padding: 0.65rem 0.5rem; border-radius: 8px; border: none; font-weight: 800; font-size: 0.88rem; cursor: pointer; background: #FFFFFF; color: #E52E06; box-shadow: 0 2px 5px rgba(0,0,0,0.08); transition: all 0.2s ease;"
+            >
+              🏢 SPOC (Group Booking)
+            </button>
+            <button
+              type="button"
+              id="btnRoleTeacher"
+              class="role-toggle-btn"
+              onclick="selectRegistrantRole('Teacher')"
+              style="flex: 1; padding: 0.65rem 0.5rem; border-radius: 8px; border: none; font-weight: 800; font-size: 0.88rem; cursor: pointer; background: transparent; color: #64748B; transition: all 0.2s ease;"
+            >
+              👨‍🏫 Teacher (Individual)
+            </button>
+          </div>
         </div>
 
         <form id="bookingForm" novalidate>
           <input type="hidden" id="inputSessionDate" name="sessionDate" value="${dateStr}">
           <input type="hidden" id="inputSessionName" name="sessionName" value="${escapeHtml(activeSessionName)}">
+          <input type="hidden" id="inputRegistrantType" name="registrantType" value="SPOC">
 
           <div class="form-group">
-            <label for="inputSpocName">SPOC Name <span class="required">*</span></label>
+            <label for="inputSpocName" id="labelSpocName">SPOC Name <span class="required">*</span></label>
             <input type="text" id="inputSpocName" class="input-control" placeholder="e.g. Ananya Sharma" required>
-            <div class="error-text" id="errSpocName">Please enter the SPOC's full name.</div>
+            <div class="error-text" id="errSpocName">Please enter full name.</div>
           </div>
 
           <div class="form-group">
-            <label for="inputSpocPhone">SPOC Phone Number <span class="required">*</span></label>
+            <label for="inputSpocPhone" id="labelSpocPhone">SPOC Phone Number <span class="required">*</span></label>
             <input type="tel" id="inputSpocPhone" class="input-control" placeholder="10-digit mobile number (e.g. 9876543210)" required>
             <div class="error-text" id="errSpocPhone">Please enter a valid 10-digit phone number.</div>
           </div>
 
           <div class="form-group">
-            <label for="inputSpocEmail">SPOC Email ID <span class="required">*</span></label>
+            <label for="inputSpocEmail" id="labelSpocEmail">SPOC Email ID <span class="required">*</span></label>
             <input type="email" id="inputSpocEmail" class="input-control" placeholder="spoc@school.edu.in" required>
             <div class="error-text" id="errSpocEmail">Please enter a valid email address.</div>
           </div>
@@ -1662,7 +1690,7 @@
             <div class="error-text" id="errSchoolName">Please enter your school name.</div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" id="groupTotalTeachers">
             <label for="inputTotalTeachers">Total Teachers Attending <span class="required">*</span></label>
             <input type="number" id="inputTotalTeachers" class="input-control" placeholder="e.g. 15" min="1" required>
             <div class="error-text" id="errTotalTeachers">Please enter a positive number of teachers.</div>
@@ -1672,7 +1700,7 @@
           <div class="dpdp-consent-box">
             <label class="dpdp-checkbox-label" for="inputDpdpConsent">
               <input type="checkbox" id="inputDpdpConsent" required>
-              <span>
+              <span id="labelConsentText">
                 By submitting this form, you consent to your information being used for CPD certification and communication regarding CPD sessions. Your details will be kept confidential and will not be shared with any third party.
               </span>
             </label>
@@ -1800,6 +1828,60 @@
       reattachFormListener();
     }
 
+    window.selectRegistrantRole = function(role) {
+      const typeInput = document.getElementById('inputRegistrantType');
+      if (typeInput) typeInput.value = role;
+
+      const btnSpoc = document.getElementById('btnRoleSpoc');
+      const btnTeacher = document.getElementById('btnRoleTeacher');
+      const groupTotal = document.getElementById('groupTotalTeachers');
+
+      const labelName = document.getElementById('labelSpocName');
+      const labelPhone = document.getElementById('labelSpocPhone');
+      const labelEmail = document.getElementById('labelSpocEmail');
+      const inputEmail = document.getElementById('inputSpocEmail');
+      const labelConsent = document.getElementById('labelConsentText');
+
+      if (role === 'Teacher') {
+        if (btnSpoc) {
+          btnSpoc.style.background = 'transparent';
+          btnSpoc.style.color = '#64748B';
+          btnSpoc.style.boxShadow = 'none';
+        }
+        if (btnTeacher) {
+          btnTeacher.style.background = '#FFFFFF';
+          btnTeacher.style.color = '#E52E06';
+          btnTeacher.style.boxShadow = '0 2px 5px rgba(0,0,0,0.08)';
+        }
+        if (groupTotal) groupTotal.style.display = 'none';
+
+        if (labelName) labelName.innerHTML = 'Teacher Name <span class="required">*</span>';
+        if (labelPhone) labelPhone.innerHTML = 'Teacher Phone Number <span class="required">*</span>';
+        if (labelEmail) labelEmail.innerHTML = 'Teacher Email ID <span class="required">*</span>';
+        if (inputEmail) inputEmail.placeholder = 'teacher@school.edu.in';
+        if (labelConsent) labelConsent.textContent = 'By submitting this form, you consent to your information being used for CPD certification and communication regarding CPD sessions. Your details will be kept confidential and will not be shared with any third party.';
+      } else {
+        if (btnTeacher) {
+          btnTeacher.style.background = 'transparent';
+          btnTeacher.style.color = '#64748B';
+          btnTeacher.style.boxShadow = 'none';
+        }
+        if (btnSpoc) {
+          btnSpoc.style.background = '#FFFFFF';
+          btnSpoc.style.color = '#E52E06';
+          btnSpoc.style.boxShadow = '0 2px 5px rgba(0,0,0,0.08)';
+        }
+        if (groupTotal) groupTotal.style.display = 'block';
+
+        if (labelName) labelName.innerHTML = 'SPOC Name <span class="required">*</span>';
+        if (labelPhone) labelPhone.innerHTML = 'SPOC Phone Number <span class="required">*</span>';
+        if (labelEmail) labelEmail.innerHTML = 'SPOC Email ID <span class="required">*</span>';
+        if (inputEmail) inputEmail.placeholder = 'spoc@school.edu.in';
+        if (labelConsent) labelConsent.textContent = 'By submitting this form, you consent to your information being used for CPD certification and communication regarding CPD sessions. Your details will be kept confidential and will not be shared with any third party.';
+      }
+      clearValidationErrors();
+    };
+
     function reattachFormListener() {
       const form = document.getElementById('bookingForm');
       if (form) {
@@ -1813,11 +1895,13 @@
 
       const sessionDate = document.getElementById('inputSessionDate').value;
       const sessionName = document.getElementById('inputSessionName').value;
+      const registrantType = document.getElementById('inputRegistrantType') ? document.getElementById('inputRegistrantType').value : 'SPOC';
       const spocName = document.getElementById('inputSpocName').value.trim();
       const spocPhone = document.getElementById('inputSpocPhone').value.trim();
       const spocEmail = document.getElementById('inputSpocEmail').value.trim();
       const schoolName = document.getElementById('inputSchoolName').value.trim();
-      const totalTeachers = document.getElementById('inputTotalTeachers').value.trim();
+      const totalTeachersInput = document.getElementById('inputTotalTeachers');
+      const totalTeachers = totalTeachersInput ? totalTeachersInput.value.trim() : '';
       const dpdpConsent = document.getElementById('inputDpdpConsent').checked;
 
       let isValid = true;
@@ -1844,10 +1928,15 @@
         isValid = false;
       }
 
-      const teachersNum = parseInt(totalTeachers, 10);
-      if (isNaN(teachersNum) || teachersNum <= 0) {
-        showError('errTotalTeachers', 'inputTotalTeachers');
-        isValid = false;
+      let teachersNum = 1;
+      if (registrantType === 'SPOC') {
+        const parsedNum = parseInt(totalTeachers, 10);
+        if (isNaN(parsedNum) || parsedNum <= 0) {
+          showError('errTotalTeachers', 'inputTotalTeachers');
+          isValid = false;
+        } else {
+          teachersNum = parsedNum;
+        }
       }
 
       if (!dpdpConsent) {
@@ -1865,10 +1954,9 @@
       btnText.textContent = 'Scheduling Session...';
       spinner.style.display = 'block';
 
-      // 1. OPTIMISTIC INSTANT SYNC (< 10 milliseconds!)
-      // Update local storage and broadcast to Admin screen IMMEDIATELY before network request
       const newBooking = {
         sessionName,
+        registrantType,
         schoolName,
         spocName,
         spocPhone,
@@ -1890,23 +1978,21 @@
         localStorage.setItem('cpd_admin_bookings', JSON.stringify(adminBookings));
         localStorage.setItem('cpd_booked_slots', JSON.stringify(bookedSlots));
 
-        // Broadcast sub-second live update signal to all open Admin tabs (< 10ms!)
         if (window.BroadcastChannel) {
           const channel = new BroadcastChannel('cpd_live_sync');
           channel.postMessage({ action: 'booking_added', sessionDate, booking: newBooking });
         }
       } catch (e) {}
 
-      // Update UI immediately for user
       renderSuccessView(schoolName, sessionDate, sessionName, spocEmail);
       renderCalendar();
 
-      // 2. Perform Network POST to Google Apps Script in background
       const payload = {
         action: 'createBooking',
         sessionDate,
         state: userSelectedState,
         sessionName,
+        registrantType,
         spocName,
         spocPhone,
         spocEmail,
@@ -1920,7 +2006,6 @@
             method: 'POST',
             body: JSON.stringify(payload)
           }).then(() => {
-            // Re-sync after backend save completes
             fetchBookedDates().then(() => renderCalendar());
           });
         }
