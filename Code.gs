@@ -4,10 +4,11 @@
  *
  * Professional Multi-State Architecture:
  * 1. Admin Sessions Sheet ("Admin Sessions"):
- *    Row 1: Merged State Headers (A-E: UP, F-J: Goa, K-O: Delhi, P-T: Rajasthan, U-Y: Gujarat)
+ *    Row 1: Merged State Headers (A-E: Chain/Retail, F-J: UP, K-O: Goa, P-T: Delhi, U-Y: Rajasthan, Z-AD: Gujarat)
  *    Row 2: Sub-headers (Timestamp | Session Date | Session Name | Tutorial Link | Slot Status)
  *
  * 2. Per-State Booking Tabs:
+ *    - "CPD Bookings (Chain/Retail)"
  *    - "CPD Bookings (UP)"
  *    - "CPD Bookings (GA)"
  *    - "CPD Bookings (DL)"
@@ -21,6 +22,7 @@ const SHEET_ADMIN_TAB_NAME = 'Admin Sessions';
 const DEFAULT_TEAMS_MEETING_LINK = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_CPDSession_AEskills%40thread.v2/0';
 
 const STATE_TAB_MAP = {
+  'CR': 'CPD Bookings (Chain/Retail)',
   'UP': 'CPD Bookings (UP)',
   'GA': 'CPD Bookings (GA)',
   'DL': 'CPD Bookings (DL)',
@@ -29,11 +31,12 @@ const STATE_TAB_MAP = {
 };
 
 const STATE_COL_OFFSETS = {
-  'UP': 1,
-  'GA': 6,
-  'DL': 11,
-  'RJ': 16,
-  'GJ': 21
+  'CR': 1,
+  'UP': 7,
+  'GA': 13,
+  'DL': 19,
+  'RJ': 25,
+  'GJ': 31
 };
 
 /**
@@ -105,7 +108,7 @@ function doPost(e) {
     }
 
     const action = safeString(payload.action) || 'createBooking';
-    const state = safeString(payload.state || 'UP').toUpperCase();
+    const state = safeString(payload.state || 'CR').toUpperCase();
 
     setupAdminSessionsLayout();
 
@@ -117,7 +120,7 @@ function doPost(e) {
         adminSheet.deleteRows(3, lastAdminRow - 2);
       }
 
-      ['UP', 'GA', 'DL', 'RJ', 'GJ'].forEach(st => {
+      ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'].forEach(st => {
         const bSheet = getOrCreateBookingsSheet(st);
         const lastBRow = bSheet.getLastRow();
         if (lastBRow >= 2) {
@@ -137,12 +140,13 @@ function doPost(e) {
       const sessionName = safeString(payload.sessionName);
       const tutorialLink = safeString(payload.tutorialLink);
       const slotStatus = safeString(payload.slotStatus) || 'SCHEDULE';
+      const teachersPresent = safeString(payload.teachersPresent);
 
       if (!dateStr || !sessionName) {
         throw new Error('Missing session date or session name');
       }
 
-      saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus, state);
+      saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus, teachersPresent, state);
 
       return ContentService.createTextOutput(JSON.stringify({
         status: 'success',
@@ -330,7 +334,7 @@ function fetchAdminSessionsMap() {
   const data = sheet.getDataRange().getValues();
   const map = {};
 
-  const stateKeys = ['UP', 'GA', 'DL', 'RJ', 'GJ'];
+  const stateKeys = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
 
   for (let r = 2; r < data.length; r++) {
     const row = data[r];
@@ -342,6 +346,7 @@ function fetchAdminSessionsMap() {
       const sessionName = safeString(row[colOffset + 2]);
       const tutorialLink = safeString(row[colOffset + 3]);
       const slotStatus = safeString(row[colOffset + 4]) || 'SCHEDULE';
+      const teachersPresent = safeString(row[colOffset + 5]);
 
       if (rDate) {
         rDate = formatDateISO(rDate);
@@ -352,6 +357,7 @@ function fetchAdminSessionsMap() {
             sessionName: sessionName,
             tutorialLink: tutorialLink,
             slotStatus: slotStatus,
+            teachersPresent: teachersPresent,
             state: st
           };
         }
@@ -362,10 +368,10 @@ function fetchAdminSessionsMap() {
   return map;
 }
 
-function saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus, state) {
+function saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus, teachersPresent, state) {
   const sheet = setupAdminSessionsLayout();
-  const st = (state || 'UP').toUpperCase();
-  const colOffset = STATE_COL_OFFSETS[st] || 1; // 1 for UP, 6 for GA, 11 for DL, etc.
+  const st = (state || 'CR').toUpperCase();
+  const colOffset = STATE_COL_OFFSETS[st] || 1;
 
   const data = sheet.getDataRange().getValues();
   const statusVal = slotStatus || 'SCHEDULE';
@@ -401,14 +407,15 @@ function saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus,
     targetRow = data.length < 2 ? 3 : data.length + 1;
   }
 
-  // Set values directly into targetRow at colOffset (5 columns: Timestamp, Date, Name, Link, Status)
+  // Set values directly into targetRow at colOffset (6 columns: Timestamp, Date, Name, Link, Status, Total Teacher Present in Session)
   sheet.getRange(targetRow, colOffset).setValue(timestamp);
   sheet.getRange(targetRow, colOffset + 1).setValue(dateStr);
   sheet.getRange(targetRow, colOffset + 2).setValue(sessionName);
   sheet.getRange(targetRow, colOffset + 3).setValue(tutorialLink);
   sheet.getRange(targetRow, colOffset + 4).setValue(statusVal);
+  sheet.getRange(targetRow, colOffset + 5).setValue(safeString(teachersPresent));
 
-  formatSheetColumns(sheet, 25);
+  formatSheetColumns(sheet, 36);
 }
 
 function updateBookingInSheet(dateStr, index, bData, state) {
@@ -459,7 +466,7 @@ function deleteBookingFromSheet(dateStr, index, state) {
  * Sheet Helper 2: Per-State Bookings Map Parser (Strict State Isolation & Timezone Precision)
  */
 function fetchBookingsMap(includeAdminDetails) {
-  const states = ['UP', 'GA', 'DL', 'RJ', 'GJ'];
+  const states = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
   const map = {};
 
   states.forEach(st => {
@@ -512,7 +519,7 @@ function fetchBookingsMap(includeAdminDetails) {
  */
 function getOrCreateBookingsSheet(state) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const st = (state || 'UP').toUpperCase();
+  const st = (state || 'CR').toUpperCase();
   const tabName = STATE_TAB_MAP[st] || `CPD Bookings (${st})`;
 
   let sheet = ss.getSheetByName(tabName);
@@ -538,7 +545,7 @@ function getOrCreateBookingsSheet(state) {
 }
 
 /**
- * Get or Create Merged Admin Sessions Sheet (5-State Layout)
+ * Get or Create Merged Admin Sessions Sheet (6-State Layout including Chain/Retail)
  */
 function setupAdminSessionsLayout() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -547,21 +554,53 @@ function setupAdminSessionsLayout() {
     sheet = ss.insertSheet(SHEET_ADMIN_TAB_NAME);
   }
 
-  const stateDisplayNames = ['UP', 'Goa', 'Delhi', 'Rajasthan', 'Gujarat'];
+  // Ensure sheet dimension has at least 36 columns (cols A to AJ)
+  const maxCols = sheet.getMaxColumns();
+  if (maxCols < 36) {
+    sheet.insertColumnsAfter(maxCols, 36 - maxCols);
+  }
+
+  const col6Val = safeString(sheet.getRange(2, 6).getValue());
+  const needsHeaderUpdate = (sheet.getLastRow() < 2) || (col6Val !== 'Total Teacher Present in Session');
+
+  if (needsHeaderUpdate) {
+    runHeaderUpgrade();
+  }
+
+  return sheet;
+}
+
+/**
+ * Standalone Helper: Run this function directly in Apps Script Editor to upgrade headers to 36 columns
+ */
+function runHeaderUpgrade() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_ADMIN_TAB_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_ADMIN_TAB_NAME);
+  }
+
+  // Ensure sheet dimension has at least 36 columns (cols A to AJ)
+  const maxCols = sheet.getMaxColumns();
+  if (maxCols < 36) {
+    sheet.insertColumnsAfter(maxCols, 36 - maxCols);
+  }
+
+  // Unmerge previous 5-column merged headers in Row 1
+  try {
+    sheet.getRange(1, 1, 1, Math.max(maxCols, 36)).breakApart();
+  } catch (e) {}
+
+  const stateDisplayNames = ['Chain/Retail', 'UP', 'Goa', 'Delhi', 'Rajasthan', 'Gujarat'];
   const subHeaders = [];
-  for (let i = 0; i < 5; i++) {
-    subHeaders.push('Timestamp', 'Session Date', 'Session Name', 'Tutorial Link', 'Slot Status');
+  for (let i = 0; i < 6; i++) {
+    subHeaders.push('Timestamp', 'Session Date', 'Session Name', 'Tutorial Link', 'Slot Status', 'Total Teacher Present in Session');
   }
 
-  if (sheet.getLastRow() < 2) {
-    sheet.clear();
-    sheet.appendRow(stateDisplayNames);
-    sheet.appendRow(subHeaders);
-  }
-
-  for (let i = 0; i < 5; i++) {
-    const startCol = i * 5 + 1;
-    const range = sheet.getRange(1, startCol, 1, 5);
+  // Merge 6 columns per state in Row 1
+  for (let i = 0; i < 6; i++) {
+    const startCol = i * 6 + 1;
+    const range = sheet.getRange(1, startCol, 1, 6);
     try { range.merge(); } catch (e) {}
     range.setValue(stateDisplayNames[i]);
     range.setBackground('#DC2626');
@@ -571,15 +610,16 @@ function setupAdminSessionsLayout() {
     range.setHorizontalAlignment('center');
   }
 
-  const row2Range = sheet.getRange(2, 1, 1, 25);
+  // Write Row 2 Subheaders
+  const row2Range = sheet.getRange(2, 1, 1, 36);
+  row2Range.setValues([subHeaders]);
   row2Range.setBackground('#0F172A');
   row2Range.setFontColor('#00D2C4');
   row2Range.setFontWeight('bold');
   row2Range.setFontSize(9);
   row2Range.setHorizontalAlignment('center');
 
-  formatSheetColumns(sheet, 25);
-  return sheet;
+  formatSheetColumns(sheet, 36);
 }
 
 function formatSheetColumns(sheet, totalCols) {

@@ -6,6 +6,7 @@ import { fetchAdminDataFromBackend, postToBackend, broadcastLiveSync, subscribeL
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const STATE_NAMES = {
+  'CR': 'Chain/Retail',
   'UP': 'Uttar Pradesh',
   'GA': 'Goa',
   'DL': 'Delhi',
@@ -15,6 +16,11 @@ const STATE_NAMES = {
 };
 
 const STATE_SLUGS = {
+  'cr': 'CR',
+  'chain-retail': 'CR',
+  'chainretail': 'CR',
+  'chain': 'CR',
+  'retail': 'CR',
   'up': 'UP',
   'uttar-pradesh': 'UP',
   'goa': 'GA',
@@ -81,7 +87,7 @@ function InstructionPopup() {
 }
 
 function detectStateFromURL() {
-  if (typeof window === 'undefined') return 'UP';
+  if (typeof window === 'undefined') return 'CR';
   const urlParams = new URLSearchParams(window.location.search);
   let stateParam = urlParams.get('state');
 
@@ -92,7 +98,7 @@ function detectStateFromURL() {
   if (!stateParam) {
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
     const lastSeg = pathSegments[pathSegments.length - 1];
-    if (lastSeg && lastSeg !== 'scheduler.html' && lastSeg !== '') {
+    if (lastSeg && lastSeg !== 'scheduler.html' && lastSeg !== 'CPD-Scheduler') {
       stateParam = lastSeg;
     }
   }
@@ -103,7 +109,7 @@ function detectStateFromURL() {
       return STATE_SLUGS[cleanParam];
     }
   }
-  return null;
+  return 'CR';
 }
 
 function formatDateKey(year, month, day) {
@@ -319,17 +325,17 @@ export default function SchedulerPage() {
                   aspectRatio: '1 / 1', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
                 }}
               >
-                <div style={{
-                  width: '56px', height: '56px', borderRadius: '14px',
+                <div className="state-card-icon-wrapper" style={{
+                  borderRadius: '14px',
                   background: `${st.accent}14`, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem'
+                  alignItems: 'center', justifyContent: 'center'
                 }}>
                   {st.icon}
                 </div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
+                <div className="state-card-name" style={{ fontWeight: 800, color: '#0F172A' }}>
                   {st.name}
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                <div className="state-card-subtitle" style={{ color: '#64748B' }}>
                   CPD Scheduler Portal
                 </div>
               </a>
@@ -342,7 +348,7 @@ export default function SchedulerPage() {
 
   return (
     <>
-      <Header isAdmin={false} activeStateName={activeStateName} />
+      <Header isAdmin={false} activeStateName={activeStateName} activeStateCode={userSelectedState} />
 
       <main>
         {/* Floating Instruction Popup — AIM style */}

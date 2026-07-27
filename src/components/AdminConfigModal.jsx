@@ -6,15 +6,17 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
   const [sessionName, setSessionName] = useState('');
   const [tutorialLink, setTutorialLink] = useState('');
   const [slotStatus, setSlotStatus] = useState('SCHEDULE');
+  const [teachersPresent, setTeachersPresent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const defaultSt = currentAdminState !== 'ALL' ? currentAdminState : 'UP';
+      const defaultSt = currentAdminState !== 'ALL' ? currentAdminState : 'CR';
       setTargetState(existingConfig?.state || defaultSt);
       setSessionName(existingConfig?.sessionName || '');
       setTutorialLink(existingConfig?.tutorialLink || '');
       setSlotStatus(existingConfig?.slotStatus || 'SCHEDULE');
+      setTeachersPresent(existingConfig?.teachersPresent || '');
     }
   }, [isOpen, dateStr, currentAdminState, existingConfig]);
 
@@ -34,7 +36,8 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       state: targetState,
       sessionName: sessionName.trim(),
       tutorialLink: tutorialLink.trim(),
-      slotStatus
+      slotStatus,
+      teachersPresent: teachersPresent.trim()
     });
     setIsSaving(false);
     onClose();
@@ -63,10 +66,12 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
                 display: 'flex', alignItems: 'center', gap: '0.5rem'
               }}>
                 📍 {
+                  targetState === 'CR' ? 'Chain/Retail (CR)' :
                   targetState === 'GA' ? 'Goa (GA)' :
                   targetState === 'DL' ? 'Delhi (DL)' :
                   targetState === 'RJ' ? 'Rajasthan (RJ)' :
-                  targetState === 'GJ' ? 'Gujarat (GJ)' : 'Uttar Pradesh (UP)'
+                  targetState === 'GJ' ? 'Gujarat (GJ)' :
+                  targetState === 'UP' ? 'Uttar Pradesh (UP)' : 'Chain/Retail (CR)'
                 }
               </div>
             </div>
@@ -94,6 +99,19 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
                 value={tutorialLink}
                 onChange={(e) => setTutorialLink(e.target.value)}
                 required
+              />
+            </div>
+
+            <div class="form-group">
+              <label htmlFor="inputConfigTeachersPresent">Total Teacher Present in Session</label>
+              <input
+                type="number"
+                id="inputConfigTeachersPresent"
+                class="input-control"
+                placeholder="e.g. 40"
+                min="0"
+                value={teachersPresent}
+                onChange={(e) => setTeachersPresent(e.target.value)}
               />
             </div>
 

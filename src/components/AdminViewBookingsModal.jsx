@@ -1,7 +1,18 @@
 import React from 'react';
 import { X, Edit2, Trash2 } from 'lucide-react';
 
-export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, onClose, onEdit, onDelete }) {
+export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, sessionConfig, onClose, onEdit, onDelete, onUpdateTeachersPresent }) {
+  const [teachersPresentVal, setTeachersPresentVal] = React.useState('');
+  const [isUpdating, setIsUpdating] = React.useState(false);
+
+  React.useEffect(() => {
+    if (sessionConfig) {
+      setTeachersPresentVal(sessionConfig.teachersPresent || '');
+    } else {
+      setTeachersPresentVal('');
+    }
+  }, [sessionConfig, dateStr]);
+
   if (!isOpen) return null;
 
   const parts = dateStr.split('-');
@@ -11,21 +22,66 @@ export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, 
   });
 
   const totalTeachers = bookingsList.reduce((acc, b) => acc + (parseInt(b.totalTeachers, 10) || 1), 0);
+  const sessionTitle = sessionConfig?.sessionName || 'CPD Session';
+
+  const handleSaveTeachersPresent = async () => {
+    if (!onUpdateTeachersPresent) return;
+    setIsUpdating(true);
+    await onUpdateTeachersPresent(dateStr, teachersPresentVal);
+    setIsUpdating(false);
+  };
 
   return (
     <div class="modal-overlay active" style={{ display: 'flex', opacity: 1, pointerEvents: 'auto' }}>
-      <div class="modal-card" style={{ maxWidth: '640px' }}>
+      <div class="modal-card" style={{ maxWidth: '680px' }}>
         <div class="modal-header">
-          <h3>Scheduled Bookings for <span>{formattedDate}</span></h3>
+          <h3>Bookings & SPOC Details for <span>{formattedDate}</span></h3>
           <button type="button" class="btn-close-modal" onClick={onClose}><X size={20} /></button>
         </div>
 
         <div class="modal-body">
-          <div style={{ background: '#FFF1F0', border: '1px solid #FFC4BC', padding: '0.85rem 1.1rem', borderRadius: '10px', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#E52E06' }}>Total Registered Teachers:</span>
-            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#E52E06', background: '#FFFFFF', padding: '0.2rem 0.75rem', borderRadius: '50px', border: '1px solid #FFC4BC' }}>
-              {totalTeachers} Teachers
-            </span>
+          {/* Session Title Banner */}
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '0.85rem 1.1rem', borderRadius: '12px', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#E52E06', textTransform: 'uppercase', letterSpacing: '0.05em' }}>SESSION NAME</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginTop: '0.15rem' }}>{sessionTitle}</div>
+            </div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, background: '#FFF1F0', color: '#E52E06', border: '1px solid #FFC4BC', padding: '0.25rem 0.65rem', borderRadius: '50px' }}>CPD Session</span>
+          </div>
+
+          {/* 3 Stat Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
+            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '0.9rem 1rem', borderRadius: '12px' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#D97706', textTransform: 'uppercase' }}>Total Registered Teachers</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#D97706', marginTop: '0.2rem' }}>👨‍🏫 {totalTeachers} Teachers</div>
+            </div>
+
+            <div style={{ background: '#E6F9F6', border: '1px solid #B2DFDB', padding: '0.9rem 1rem', borderRadius: '12px' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#00897B', textTransform: 'uppercase' }}>Total Schools</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#00897B', marginTop: '0.2rem' }}>🏫 {bookingsList.length} Schools</div>
+            </div>
+
+            <div style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', padding: '0.9rem 1rem', borderRadius: '12px' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#4F46E5', textTransform: 'uppercase' }}>Teachers Present in Session</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem' }}>
+                <input
+                  type="number"
+                  placeholder="0"
+                  min="0"
+                  value={teachersPresentVal}
+                  onChange={(e) => setTeachersPresentVal(e.target.value)}
+                  style={{ width: '70px', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #A5B4FC', fontWeight: 800, fontSize: '0.92rem', color: '#312E81' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveTeachersPresent}
+                  disabled={isUpdating}
+                  style={{ background: '#4F46E5', color: '#FFFFFF', border: 'none', padding: '0.35rem 0.75rem', borderRadius: '6px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                >
+                  {isUpdating ? '...' : 'Save'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {bookingsList.length === 0 ? (

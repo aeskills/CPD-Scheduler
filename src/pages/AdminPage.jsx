@@ -18,7 +18,7 @@ export default function AdminPage() {
     return sessionStorage.getItem('cpd_admin_logged_in') === 'true';
   });
 
-  const [currentAdminState, setCurrentAdminState] = useState('UP');
+  const [currentAdminState, setCurrentAdminState] = useState('CR');
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const [adminSessionConfigs, setAdminSessionConfigs] = useState(() => {
@@ -82,10 +82,10 @@ export default function AdminPage() {
   };
 
   const handleSaveConfig = async (data) => {
-    const { dateStr, state, sessionName, tutorialLink, slotStatus } = data;
+    const { dateStr, state, sessionName, tutorialLink, slotStatus, teachersPresent } = data;
     const stKey = state + '_' + dateStr;
 
-    const newConfig = { sessionName, tutorialLink, slotStatus, state };
+    const newConfig = { sessionName, tutorialLink, slotStatus, teachersPresent, state };
 
     setAdminSessionConfigs(prev => {
       const next = { ...prev, [stKey]: newConfig, [dateStr]: newConfig };
@@ -101,7 +101,41 @@ export default function AdminPage() {
       state: state,
       sessionName: sessionName,
       tutorialLink: tutorialLink,
-      slotStatus: slotStatus
+      slotStatus: slotStatus,
+      teachersPresent: teachersPresent
+    });
+
+    loadData();
+  };
+
+  const handleUpdateTeachersPresent = async (dateStr, teachersPresentVal) => {
+    const stKey = currentAdminState + '_' + dateStr;
+    const existing = adminSessionConfigs[stKey] || {};
+    const updatedConfig = {
+      ...existing,
+      sessionName: existing.sessionName || 'CPD Session',
+      tutorialLink: existing.tutorialLink || '',
+      slotStatus: existing.slotStatus || 'SCHEDULE',
+      teachersPresent: teachersPresentVal,
+      state: currentAdminState
+    };
+
+    setAdminSessionConfigs(prev => {
+      const next = { ...prev, [stKey]: updatedConfig, [dateStr]: updatedConfig };
+      localStorage.setItem('cpd_admin_session_configs', JSON.stringify(next));
+      return next;
+    });
+
+    broadcastLiveSync({ action: 'config_saved', dateStr, config: updatedConfig });
+
+    await postToBackend({
+      action: 'saveSessionConfig',
+      sessionDate: dateStr,
+      state: currentAdminState,
+      sessionName: updatedConfig.sessionName,
+      tutorialLink: updatedConfig.tutorialLink,
+      slotStatus: updatedConfig.slotStatus,
+      teachersPresent: teachersPresentVal
     });
 
     loadData();
@@ -127,7 +161,7 @@ export default function AdminPage() {
     await postToBackend({
       action: 'updateBooking',
       sessionDate: dateStr,
-      state: currentAdminState !== 'ALL' ? currentAdminState : 'UP',
+      state: currentAdminState !== 'ALL' ? currentAdminState : 'CR',
       index: index,
       bookingData: bData
     });
@@ -153,7 +187,7 @@ export default function AdminPage() {
     await postToBackend({
       action: 'deleteBooking',
       sessionDate: dateStr,
-      state: currentAdminState !== 'ALL' ? currentAdminState : 'UP',
+      state: currentAdminState !== 'ALL' ? currentAdminState : 'CR',
       index: index
     });
 
@@ -245,6 +279,7 @@ export default function AdminPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
             {[
+              { code: 'CR', name: 'Chain/Retail' },
               { code: 'UP', name: 'Uttar Pradesh' },
               { code: 'GA', name: 'Goa' },
               { code: 'DL', name: 'Delhi' },
@@ -359,11 +394,13 @@ export default function AdminPage() {
           isOpen={Boolean(viewBookingsDate)}
           dateStr={viewBookingsDate}
           bookingsList={getBookingsListForModal(viewBookingsDate)}
+          sessionConfig={getExistingConfigForModal(viewBookingsDate)}
           onClose={() => setViewBookingsDate(null)}
           onEdit={(dStr, idx, bData) => {
             setEditBookingData({ dateStr: dStr, index: idx, bookingData: bData });
           }}
           onDelete={handleDeleteBooking}
+          onUpdateTeachersPresent={handleUpdateTeachersPresent}
         />
       )}
 

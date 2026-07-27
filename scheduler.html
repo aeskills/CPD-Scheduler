@@ -1186,6 +1186,7 @@
 
     // State Routing & Switcher Logic
     const STATE_NAMES = {
+      'CR': 'Chain/Retail',
       'UP': 'Uttar Pradesh',
       'GA': 'Goa',
       'DL': 'Delhi',
@@ -1195,6 +1196,11 @@
     };
 
     const STATE_SLUGS = {
+      'cr': 'CR',
+      'chain-retail': 'CR',
+      'chainretail': 'CR',
+      'chain': 'CR',
+      'retail': 'CR',
       'up': 'UP',
       'uttar-pradesh': 'UP',
       'goa': 'GA',
@@ -1208,6 +1214,15 @@
       'gj': 'GJ'
     };
 
+    const PRELOADED_URL_MAP = {
+      'UP': 'https://aeskills.github.io/CPD/up',
+      'GA': 'https://aeskills.github.io/CPD/goa',
+      'DL': 'https://aeskills.github.io/CPD/delhi',
+      'RJ': 'https://aeskills.github.io/CPD/rajasthan',
+      'GJ': 'https://aeskills.github.io/CPD/gujarat',
+      'CR': 'https://aeskills.github.io/CPD/'
+    };
+
     function detectStateFromURL() {
       const urlParams = new URLSearchParams(window.location.search);
       let stateParam = urlParams.get('state');
@@ -1219,7 +1234,7 @@
       if (!stateParam) {
         const pathSegments = window.location.pathname.split('/').filter(Boolean);
         const lastSeg = pathSegments[pathSegments.length - 1];
-        if (lastSeg && lastSeg !== 'scheduler.html') {
+        if (lastSeg && lastSeg !== 'scheduler.html' && lastSeg !== 'CPD-Scheduler') {
           stateParam = lastSeg;
         }
       }
@@ -1230,7 +1245,7 @@
           return STATE_SLUGS[cleanParam];
         }
       }
-      return null;
+      return 'CR';
     }
 
     let userSelectedState = detectStateFromURL();
@@ -1246,6 +1261,11 @@
       document.title = 'CPD ' + label;
       const labelEl = document.getElementById('activeStateLabelText');
       if (labelEl) labelEl.textContent = label;
+
+      const preloadedBtn = document.querySelector('.btn-back');
+      if (preloadedBtn) {
+        preloadedBtn.href = PRELOADED_URL_MAP[stateCode] || 'https://aeskills.github.io/CPD/';
+      }
 
       document.querySelectorAll('.state-capsule-btn').forEach(btn => {
         if (btn.getAttribute('data-state') === stateCode) {
