@@ -817,8 +817,8 @@
         <button class="state-capsule-btn" data-state="DL" onclick="selectAdminState('DL')">
           <span class="active-dot"></span> Delhi
         </button>
-        <button class="state-capsule-btn" data-state="RJ" onclick="selectAdminState('RJ')">
-          <span class="active-dot"></span> Rajasthan
+        <button class="state-capsule-btn" data-state="UT" onclick="selectAdminState('UT')">
+          <span class="active-dot"></span> Uttarakhand
         </button>
         <button class="state-capsule-btn" data-state="GJ" onclick="selectAdminState('GJ')">
           <span class="active-dot"></span> Gujarat
@@ -890,24 +890,81 @@
             <input type="url" id="inputConfigTutorialLink" class="input-control" placeholder="https://teams.microsoft.com/l/meetup-join/..." required>
           </div>
 
-          <div class="form-group">
-            <label for="inputConfigTeachersPresent">Total Teacher Present in Session</label>
-            <input type="number" id="inputConfigTeachersPresent" class="input-control" placeholder="e.g. 40" min="0">
-          </div>
-
           <div class="form-group" style="margin-top: 1.25rem;">
             <label for="selectConfigSlotStatus" style="font-weight: 700; color: var(--cpd-red); display: block; margin-bottom: 0.4rem;">Slot Status & Availability</label>
             <select id="selectConfigSlotStatus" class="input-control" style="background: #FAFAFC; color: #0F172A; font-weight: 700; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; width: 100%; font-size: 0.92rem; cursor: pointer;">
               <option value="SCHEDULE" style="background: #FFFFFF; color: #00897B; font-weight: 700;">🟢 SCHEDULE — Open for Booking</option>
               <option value="FILLING_FAST" style="background: #FFFFFF; color: #D97706; font-weight: 700;">🟠 FILLING FAST — Slot will be full shortly</option>
               <option value="SLOT_FULL" style="background: #FFFFFF; color: #DC2626; font-weight: 700;">🔴 SLOT IS FULL / BLOCKED — Blocked (No new bookings allowed)</option>
+              <option value="SESSION_COMPLETED" style="background: #FFFFFF; color: #475569; font-weight: 700;">⚫ SESSION IS COMPLETED — Session ended & day blocked</option>
             </select>
           </div>
 
-          <button type="submit" class="btn-submit" id="btnSaveConfig" style="margin-top: 1.5rem;">
-            <span id="btnSaveConfigText">Save Session Configuration</span>
-            <div class="spinner" id="btnSaveConfigSpinner" style="display: none;"></div>
-          </button>
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+            <button type="submit" class="btn-submit" id="btnSaveConfig" style="flex: 2;">
+              <span id="btnSaveConfigText">Save Session Configuration</span>
+              <div class="spinner" id="btnSaveConfigSpinner" style="display: none;"></div>
+            </button>
+            <button type="button" id="btnEndSession" style="flex: 1; background: #334155; color: #FFFFFF; border: none; border-radius: 10px; font-weight: 800; font-size: 0.88rem; cursor: pointer;">
+              🏁 End Session
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Custom End Session & Attendance Input Modal -->
+  <div class="modal-overlay" id="endSessionPromptModal">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+        <h3 style="color: var(--text-main); font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+          🏁 <span>End Session Confirmation</span>
+        </h3>
+        <button class="btn-close-modal" data-modal="endSessionPromptModal">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding-top: 1.25rem;">
+        <div style="font-size: 0.86rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+          Ending CPD Session for <strong id="endSessionStateLabel" style="color: var(--cpd-red);">Chain/Retail</strong> on <strong id="endSessionDateLabel" style="color: var(--text-main);">Date</strong>.
+        </div>
+
+        <form id="endSessionConfirmForm">
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="endSessionTeachersPresentInput" style="font-weight: 700; color: var(--text-main); display: block; margin-bottom: 0.4rem; font-size: 0.88rem;">
+              Total Number of Teachers Attended
+            </label>
+            <input
+              type="number"
+              id="endSessionTeachersPresentInput"
+              class="input-control"
+              placeholder="e.g. 25"
+              min="0"
+              required
+              style="font-size: 1rem; font-weight: 700; padding: 0.75rem; border-radius: 8px;"
+            />
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.35rem;">
+              Enter the total count of teachers present in this session before ending.
+            </div>
+          </div>
+
+          <div style="background: #FFF1F0; border: 1px solid #FFC4BC; border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1.5rem;">
+            <div style="font-weight: 800; color: #DC2626; font-size: 0.88rem; margin-bottom: 0.25rem;">
+              ⚠️ Confirm Session Completion
+            </div>
+            <div style="font-size: 0.8rem; color: #991B1B; line-height: 1.4;">
+              Do you want to end this session now? The slot will be marked as completed on the user portal.
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem;">
+            <button type="submit" id="btnConfirmEndSessionYes" class="btn-submit" style="flex: 1; background: #334155; color: #FFFFFF; font-weight: 800; border-radius: 8px; padding: 0.75rem; border: none; cursor: pointer;">
+              ✓ Yes, End Session
+            </button>
+            <button type="button" class="btn-close-modal" data-modal="endSessionPromptModal" style="flex: 1; background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; font-weight: 700; border-radius: 8px; cursor: pointer; padding: 0.75rem;">
+              ✕ No, Cancel
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -1226,7 +1283,7 @@
           config = adminSessionConfigs[currentAdminState + '_' + dateStr] || adminSessionConfigs[dateStr];
         } else {
           // Look for any configured state session on date
-          const stateKeys = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
+          const stateKeys = ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'];
           for (let st of stateKeys) {
             if (adminSessionConfigs[st + '_' + dateStr]) {
               config = adminSessionConfigs[st + '_' + dateStr];
@@ -1238,7 +1295,9 @@
 
         if (config && config.sessionName) {
           let statusBadge = '';
-          if (config.slotStatus === 'SLOT_FULL') {
+          if (config.slotStatus === 'SESSION_COMPLETED') {
+            statusBadge = '<span style="color: #475569; font-weight: 800; font-size: 0.65rem;">[⚫ COMPLETED]</span> ';
+          } else if (config.slotStatus === 'SLOT_FULL') {
             statusBadge = '<span style="color: #DC2626; font-weight: 800; font-size: 0.65rem;">[🔴 FULL / BLOCKED]</span> ';
           } else if (config.slotStatus === 'FILLING_FAST') {
             statusBadge = '<span style="color: #D97706; font-weight: 800; font-size: 0.65rem;">[🟠 FILLING FAST]</span> ';
@@ -1261,7 +1320,7 @@
           list = adminBookings[currentAdminState + '_' + dateStr] || adminBookings[dateStr] || [];
         } else {
           list = adminBookings[dateStr] || [];
-          ['UP', 'GA', 'DL', 'RJ', 'GJ'].forEach(st => {
+          ['UP', 'GA', 'DL', 'UT', 'GJ'].forEach(st => {
             if (adminBookings[st + '_' + dateStr]) {
               list = list.concat(adminBookings[st + '_' + dateStr]);
             }
@@ -1304,10 +1363,11 @@
       document.getElementById('configModalDateLabel').textContent = formatHumanDate(dateStr);
       document.getElementById('configDateKey').value = dateStr;
 
-      const activeSt = targetState || (currentAdminState !== 'ALL' ? currentAdminState : 'UP');
-      document.getElementById('selectConfigState').value = activeSt;
+      const activeSt = targetState || (currentAdminState !== 'ALL' ? currentAdminState : 'CR');
+      const stInput = document.getElementById('selectConfigState');
+      if (stInput) stInput.value = activeSt;
 
-      const stateLabels = { 'UP': 'Uttar Pradesh (UP)', 'GA': 'Goa (GA)', 'DL': 'Delhi (DL)', 'RJ': 'Rajasthan (RJ)', 'GJ': 'Gujarat (GJ)' };
+      const stateLabels = { 'CR': 'Chain/Retail (CR)', 'UP': 'Uttar Pradesh (UP)', 'GA': 'Goa (GA)', 'DL': 'Delhi (DL)', 'UT': 'Uttarakhand (UT)', 'GJ': 'Gujarat (GJ)' };
       const badgeEl = document.getElementById('displayConfigStateBadge');
       if (badgeEl) badgeEl.innerHTML = '📍 ' + (stateLabels[activeSt] || activeSt);
 
@@ -1492,6 +1552,74 @@
         renderAdminCalendar();
       });
 
+      // End Session button listener (opens custom modal)
+      const btnEndSession = document.getElementById('btnEndSession');
+      if (btnEndSession) {
+        btnEndSession.addEventListener('click', () => {
+          const dateStr = document.getElementById('configDateKey').value;
+          const state = document.getElementById('selectConfigState').value || 'CR';
+          const existingConfig = adminSessionConfigs[state + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
+
+          const stateNames = { 'CR': 'Chain/Retail (CR)', 'UP': 'Uttar Pradesh (UP)', 'GA': 'Goa (GA)', 'DL': 'Delhi (DL)', 'UT': 'Uttarakhand (UT)', 'GJ': 'Gujarat (GJ)' };
+          document.getElementById('endSessionDateLabel').textContent = formatHumanDate(dateStr);
+          document.getElementById('endSessionStateLabel').textContent = stateNames[state] || state;
+          document.getElementById('endSessionTeachersPresentInput').value = existingConfig.teachersPresent || '0';
+
+          openModal('endSessionPromptModal');
+        });
+      }
+
+      // End Session Confirm Form submit listener (Yes, End Session)
+      const endSessionConfirmForm = document.getElementById('endSessionConfirmForm');
+      if (endSessionConfirmForm) {
+        endSessionConfirmForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const dateStr = document.getElementById('configDateKey').value;
+          const state = document.getElementById('selectConfigState').value || 'CR';
+          const sessionName = document.getElementById('inputConfigSessionName').value.trim() || 'CPD Session';
+          const tutorialLink = document.getElementById('inputConfigTutorialLink').value.trim();
+
+          const tpInput = document.getElementById('endSessionTeachersPresentInput');
+          const teachersPresent = tpInput ? (tpInput.value.trim() || '0') : '0';
+          const slotStatus = 'SESSION_COMPLETED';
+
+          const configObj = { sessionName, tutorialLink, slotStatus, teachersPresent, state };
+          adminSessionConfigs[state + '_' + dateStr] = configObj;
+          adminSessionConfigs[dateStr] = configObj;
+          localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
+
+          if (window.BroadcastChannel) {
+            try {
+              const syncChannel = new BroadcastChannel('cpd_live_sync');
+              syncChannel.postMessage({ action: 'config_saved', dateStr, config: configObj });
+            } catch (e) {}
+          }
+
+          if (APPS_SCRIPT_URL.trim()) {
+            try {
+              await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                  action: 'saveSessionConfig',
+                  sessionDate: dateStr,
+                  state: state,
+                  sessionName,
+                  tutorialLink,
+                  slotStatus,
+                  teachersPresent
+                })
+              });
+            } catch (err) {
+              console.warn('Backend session config save error:', err);
+            }
+          }
+
+          closeModal('endSessionPromptModal');
+          closeModal('configSessionModal');
+          renderAdminCalendar();
+        });
+      }
+
       // Save Session Config (triggered by + button modal form)
       document.getElementById('configSessionForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1515,6 +1643,13 @@
         adminSessionConfigs[state + '_' + dateStr] = configObj;
         adminSessionConfigs[dateStr] = configObj;
         localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
+
+        if (window.BroadcastChannel) {
+          try {
+            const syncChannel = new BroadcastChannel('cpd_live_sync');
+            syncChannel.postMessage({ action: 'config_saved', dateStr, config: configObj });
+          } catch (e) {}
+        }
 
         if (APPS_SCRIPT_URL.trim()) {
           try {
