@@ -26,7 +26,7 @@ const STATE_TAB_MAP = {
   'UP': 'CPD Bookings (UP)',
   'GA': 'CPD Bookings (GA)',
   'DL': 'CPD Bookings (DL)',
-  'RJ': 'CPD Bookings (RJ)',
+  'UT': 'CPD Bookings (Uttarakhand)',
   'GJ': 'CPD Bookings (GJ)'
 };
 
@@ -35,7 +35,7 @@ const STATE_COL_OFFSETS = {
   'UP': 7,
   'GA': 13,
   'DL': 19,
-  'RJ': 25,
+  'UT': 25,
   'GJ': 31
 };
 
@@ -46,6 +46,7 @@ function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) ? safeString(e.parameter.action) : 'getBookings';
 
+    autoMigrateSheetSchema();
     setupAdminSessionsLayout();
 
     const sessionConfigs = fetchAdminSessionsMap();
@@ -110,6 +111,7 @@ function doPost(e) {
     const action = safeString(payload.action) || 'createBooking';
     const state = safeString(payload.state || 'CR').toUpperCase();
 
+    autoMigrateSheetSchema();
     setupAdminSessionsLayout();
 
     // CLEAR ALL DATA & START FRESH
@@ -120,7 +122,7 @@ function doPost(e) {
         adminSheet.deleteRows(3, lastAdminRow - 2);
       }
 
-      ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'].forEach(st => {
+      ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'].forEach(st => {
         const bSheet = getOrCreateBookingsSheet(st);
         const lastBRow = bSheet.getLastRow();
         if (lastBRow >= 2) {
@@ -206,8 +208,8 @@ function doPost(e) {
 
     const configsMap = fetchAdminSessionsMap();
     const activeConfig = configsMap[state + '_' + sessionDate] || {};
-    if (activeConfig.slotStatus === 'SLOT_FULL') {
-      throw new Error('Booking Closed: This slot has been marked as full or blocked by the administrator.');
+    if (activeConfig.slotStatus === 'SLOT_FULL' || activeConfig.slotStatus === 'SESSION_COMPLETED') {
+      throw new Error('Booking Closed: This slot has been marked as full or completed by the administrator.');
     }
 
     if (!sessionDate || !spocName || !spocEmail || !schoolName) {
@@ -223,19 +225,18 @@ function doPost(e) {
 
     sheet.appendRow([
       timestamp,       // Col A: Timestamp
-      registrantType,  // Col B: Type ('SPOC' or 'Teacher')
-      sessionDate,     // Col C: Session Date
-      sessionName,     // Col D: Session Name
-      spocName,        // Col E: Name
-      spocPhone,       // Col F: Phone
-      spocEmail,       // Col G: Email
-      schoolName,      // Col H: School Name
-      totalTeachers,   // Col I: Total Teachers (empty for Teacher)
-      reminderSent,    // Col J: Reminder Sent (Y/N)
-      teamsLink        // Col K: Teams Link
+      sessionDate,     // Col B: Session Date
+      sessionName,     // Col C: Session Name
+      spocName,        // Col D: Name
+      spocPhone,       // Col E: Phone
+      spocEmail,       // Col F: Email
+      schoolName,      // Col G: School Name
+      totalTeachers,   // Col H: Total Teachers (1 for Teacher)
+      reminderSent,    // Col I: Reminder Sent (Y/N)
+      teamsLink        // Col J: Teams Link
     ]);
 
-    formatSheetColumns(sheet, 11);
+    formatSheetColumns(sheet, 10);
 
     sendConfirmationEmail({
       sessionName: sessionName,
@@ -347,7 +348,7 @@ function fetchAdminSessionsMap() {
   const data = sheet.getDataRange().getValues();
   const map = {};
 
-  const stateKeys = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
+  const stateKeys = ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'];
 
   for (let r = 2; r < data.length; r++) {
     const row = data[r];
@@ -443,11 +444,9 @@ function updateBookingInSheet(dateStr, index, bData, state) {
       rDate = formatDateISO(rDate);
       if (rDate && rDate.substring(0, 10) === dateStr) {
         if (matchCount === index) {
-          const typeVal = bData.registrantType || (is11Col ? safeString(data[i][1]) : 'SPOC');
-          const tTeachers = typeVal === 'Teacher' ? '1' : (bData.totalTeachers || '1');
+          const tTeachers = bData.totalTeachers || '1';
 
           if (is11Col) {
-            sheet.getRange(i + 1, 2).setValue(typeVal);
             sheet.getRange(i + 1, 5).setValue(bData.spocName);
             sheet.getRange(i + 1, 6).setValue(bData.spocPhone);
             sheet.getRange(i + 1, 7).setValue(bData.spocEmail);
@@ -493,7 +492,7 @@ function deleteBookingFromSheet(dateStr, index, state) {
  * Sheet Helper 2: Per-State Bookings Map Parser (Strict State Isolation & Timezone Precision)
  */
 function fetchBookingsMap(includeAdminDetails) {
-  const states = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
+  const states = ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'];
   const map = {};
 
   states.forEach(st => {
@@ -510,9 +509,6 @@ function fetchBookingsMap(includeAdminDetails) {
 
         if (rowDate && rowDate.length >= 10) {
           const cleanDate = rowDate.substring(0, 10);
-          let registrantType = is11Col ? safeString(row[1]) : 'SPOC';
-          if (!registrantType) registrantType = 'SPOC';
-
           let sessionName   = is11Col ? safeString(row[3]) : safeString(row[2]);
           let spocName      = is11Col ? safeString(row[4]) : safeString(row[3]);
           let spocPhone     = is11Col ? safeString(row[5]) : safeString(row[4]);
@@ -528,12 +524,12 @@ function fetchBookingsMap(includeAdminDetails) {
 
           const bItem = {
             sessionName: sessionName || 'CPD Session',
-            registrantType: registrantType,
+            registrantType: 'Teacher',
             spocName: spocName,
             spocPhone: spocPhone,
             spocEmail: spocEmail,
             schoolName: schoolName,
-            totalTeachers: registrantType === 'Teacher' ? '1' : (totalTeachers || '1'),
+            totalTeachers: totalTeachers || '1',
             state: st
           };
 
@@ -547,7 +543,7 @@ function fetchBookingsMap(includeAdminDetails) {
 }
 
 /**
- * Get or Create Per-State Bookings Sheet (11-column layout)
+ * Get or Create Per-State Bookings Sheet (Standard 10-column layout)
  */
 function getOrCreateBookingsSheet(state) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -558,7 +554,6 @@ function getOrCreateBookingsSheet(state) {
   
   const subHeaders = [
     'Timestamp',
-    'Type',
     'Session Date',
     'Session Name',
     'Name',
@@ -573,56 +568,10 @@ function getOrCreateBookingsSheet(state) {
   if (!sheet) {
     sheet = ss.insertSheet(tabName);
     sheet.appendRow(subHeaders);
-    formatSheetColumns(sheet, 11);
-  } else {
-    // If existing sheet has 10 columns, auto-upgrade header to 11 columns
-    const col2Header = safeString(sheet.getRange(1, 2).getValue());
-    if (col2Header !== 'Type') {
-      upgradeBookingsSheetHeaders(sheet);
-    }
+    formatSheetColumns(sheet, 10);
   }
 
   return sheet;
-}
-
-/**
- * Upgrade existing 10-column booking sheet to 11-column layout (inserts Type column at Col B)
- */
-function upgradeBookingsSheetHeaders(sheet) {
-  if (!sheet) return;
-  const col2Header = safeString(sheet.getRange(1, 2).getValue());
-  if (col2Header === 'Type') return;
-
-  sheet.insertColumnBefore(2);
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= 2) {
-    const types = [];
-    for (let i = 2; i <= lastRow; i++) {
-      types.push(['SPOC']);
-    }
-    sheet.getRange(2, 2, types.length, 1).setValues(types);
-  }
-
-  const subHeaders = [
-    ['Timestamp', 'Type', 'Session Date', 'Session Name', 'Name', 'Phone', 'Email', 'School Name', 'Total Teachers', 'Reminder Sent', 'Teams Link']
-  ];
-  sheet.getRange(1, 1, 1, 11).setValues(subHeaders);
-  sheet.getRange(1, 1, 1, 11).setBackground('#0F172A').setFontColor('#00D2C4').setFontWeight('bold');
-
-  formatSheetColumns(sheet, 11);
-}
-
-/**
- * Standalone Helper: Upgrades all per-state booking tabs to 11 columns
- */
-function runBookingsSheetUpgrade() {
-  const states = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
-  states.forEach(st => {
-    const sheet = getOrCreateBookingsSheet(st);
-    upgradeBookingsSheetHeaders(sheet);
-  });
-  Logger.log('All per-state booking sheets upgraded to 11-column layout with Type.');
 }
 
 /**
@@ -672,7 +621,7 @@ function runHeaderUpgrade() {
     sheet.getRange(1, 1, 1, Math.max(maxCols, 36)).breakApart();
   } catch (e) {}
 
-  const stateDisplayNames = ['Chain/Retail', 'UP', 'Goa', 'Delhi', 'Rajasthan', 'Gujarat'];
+  const stateDisplayNames = ['Chain/Retail', 'UP', 'Goa', 'Delhi', 'Uttarakhand', 'Gujarat'];
   const subHeaders = [];
   for (let i = 0; i < 6; i++) {
     subHeaders.push('Timestamp', 'Session Date', 'Session Name', 'Tutorial Link', 'Slot Status', 'Total Teacher Present in Session');
@@ -755,4 +704,65 @@ function escapeHtml(text) {
 function safeString(val) {
   if (val === undefined || val === null || val === 'undefined' || val === 'null') return '';
   return String(val).trim();
+}
+
+/**
+ * Automated Migration Helper: Automatically converts 11-column sheets to 10-column schema (deletes Column B 'Type')
+ * and renames legacy "CPD Bookings (RJ)" or "CPD Bookings (UT)" to "CPD Bookings (Uttarakhand)"
+ */
+function autoMigrateSheetSchema() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. Automatically rename old RJ tab or UT tab to "CPD Bookings (Uttarakhand)" if present
+  try {
+    const oldRjSheet = ss.getSheetByName('CPD Bookings (RJ)');
+    const targetUtSheet = ss.getSheetByName('CPD Bookings (Uttarakhand)');
+    if (oldRjSheet && !targetUtSheet) {
+      oldRjSheet.setName('CPD Bookings (Uttarakhand)');
+    }
+    const oldUtSheet = ss.getSheetByName('CPD Bookings (UT)');
+    if (oldUtSheet && !ss.getSheetByName('CPD Bookings (Uttarakhand)')) {
+      oldUtSheet.setName('CPD Bookings (Uttarakhand)');
+    }
+  } catch (e) {}
+
+  // 2. Clean up Type column across all booking sheets if present
+  const bookingTabNames = [
+    'CPD Bookings (Chain/Retail)',
+    'CPD Bookings (UP)',
+    'CPD Bookings (GA)',
+    'CPD Bookings (DL)',
+    'CPD Bookings (Uttarakhand)',
+    'CPD Bookings (GJ)'
+  ];
+
+  const subHeaders = [
+    ['Timestamp', 'Session Date', 'Session Name', 'Name', 'Phone', 'Email', 'School Name', 'Total Teachers', 'Reminder Sent', 'Teams Link']
+  ];
+
+  bookingTabNames.forEach(tabName => {
+    try {
+      const sheet = ss.getSheetByName(tabName);
+      if (sheet && sheet.getLastColumn() >= 2) {
+        const col2Header = safeString(sheet.getRange(1, 2).getValue());
+        if (col2Header === 'Type') {
+          sheet.deleteColumn(2); // Automatically delete Column B ('Type')
+          sheet.getRange(1, 1, 1, 10).setValues(subHeaders);
+          sheet.getRange(1, 1, 1, 10).setBackground('#0F172A').setFontColor('#00D2C4').setFontWeight('bold');
+          formatSheetColumns(sheet, 10);
+        }
+      }
+    } catch (err) {
+      Logger.log('Auto migration note for ' + tabName + ': ' + err.toString());
+    }
+  });
+}
+
+/**
+ * Standalone Menu Function: Run this directly in Apps Script Editor to clean all sheets automatically!
+ */
+function runAutoMigration() {
+  autoMigrateSheetSchema();
+  setupAdminSessionsLayout();
+  Logger.log('Migration completed successfully: Type column deleted and Uttarakhand tab configured.');
 }

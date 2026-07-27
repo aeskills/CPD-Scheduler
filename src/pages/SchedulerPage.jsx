@@ -10,7 +10,7 @@ const STATE_NAMES = {
   'UP': 'Uttar Pradesh',
   'GA': 'Goa',
   'DL': 'Delhi',
-  'RJ': 'Rajasthan',
+  'UT': 'Uttarakhand',
   'GJ': 'Gujarat',
   'ALL': 'All States'
 };
@@ -27,9 +27,11 @@ const STATE_SLUGS = {
   'ga': 'GA',
   'delhi': 'DL',
   'dl': 'DL',
-  'raj': 'RJ',
-  'rajasthan': 'RJ',
-  'rj': 'RJ',
+  'ut': 'UT',
+  'uttarakhand': 'UT',
+  'uttrakhand': 'UT',
+  'raj': 'UT',
+  'rajasthan': 'UT',
   'gujarat': 'GJ',
   'gj': 'GJ'
 };
@@ -39,7 +41,7 @@ function InstructionPopup() {
 
   useEffect(() => {
     if (infoState === 'open') {
-      const timer = setTimeout(() => setInfoState('capsule'), 5000);
+      const timer = setTimeout(() => setInfoState('capsule'), 30000);
       return () => clearTimeout(timer);
     }
   }, [infoState]);
@@ -248,7 +250,7 @@ export default function SchedulerPage() {
     const isToday = (cellDate.getTime() === today.getTime());
 
     const stKey = userSelectedState + '_' + dateStr;
-    const config = adminSessionConfigs[stKey] || {};
+    const config = adminSessionConfigs[stKey] || adminSessionConfigs[dateStr] || {};
 
     const slotStatus = config.slotStatus || 'SCHEDULE';
 
@@ -271,7 +273,17 @@ export default function SchedulerPage() {
   }
 
   const handleCellClick = (item) => {
+    if (!item.config?.sessionName) return; // Do not open modal on dates without an activity
     if (item.isPast) return;
+    if (item.slotStatus === 'SESSION_COMPLETED') {
+      setAlertModalState({
+        isOpen: true,
+        title: 'Session Completed',
+        message: 'This CPD session has ended and is marked as completed by the administrator.',
+        icon: '✅'
+      });
+      return;
+    }
     if (item.slotStatus === 'SLOT_FULL') {
       setAlertModalState({
         isOpen: true,
@@ -289,7 +301,7 @@ export default function SchedulerPage() {
       { code: 'up', name: 'Uttar Pradesh', icon: '🕌', accent: '#E52E06' },
       { code: 'goa', name: 'Goa', icon: '🌴', accent: '#10B981' },
       { code: 'delhi', name: 'Delhi', icon: '🏛️', accent: '#2563EB' },
-      { code: 'raj', name: 'Rajasthan', icon: '🏰', accent: '#F59E0B' },
+      { code: 'ut', name: 'Uttarakhand', icon: '🏔️', accent: '#F59E0B' },
       { code: 'gujarat', name: 'Gujarat', icon: '🦁', accent: '#8B5CF6' }
     ];
 
@@ -390,60 +402,76 @@ export default function SchedulerPage() {
             ))}
 
             {currentMonthDays.map(item => {
+              const sessionTitle = item.config.sessionName;
+              const hasActivity = Boolean(sessionTitle);
+
               let cellClass = 'day-cell';
               if (item.isToday) cellClass += ' is-today';
 
-              if (item.isPast) {
-                cellClass += ' day-past';
-              } else if (item.slotStatus === 'SLOT_FULL') {
-                cellClass += ' day-blocked';
-              } else {
-                cellClass += ' day-available';
+              if (hasActivity) {
+                if (item.isPast) {
+                  cellClass += ' day-past';
+                } else if (item.slotStatus === 'SLOT_FULL' || item.slotStatus === 'SESSION_COMPLETED') {
+                  cellClass += ' day-blocked';
+                } else {
+                  cellClass += ' day-available';
+                }
               }
-
-              const sessionTitle = item.config.sessionName;
 
               return (
                 <div
                   key={`day-${item.day}`}
                   class={cellClass}
+                  style={{ cursor: hasActivity ? 'pointer' : 'default' }}
                   onClick={() => handleCellClick(item)}
                 >
                   <div class="day-header">
                     <span class="day-number">{item.day}</span>
                   </div>
 
-                  {item.isPast ? (
-                    <div class="status-badge badge-past">Past</div>
-                  ) : item.slotStatus === 'SLOT_FULL' ? (
+                  {/* ONLY render session details & buttons if Admin added an activity */}
+                  {hasActivity && (
                     <>
-                      {sessionTitle && (
-                        <div class="school-name-preview" title={sessionTitle} style={{ color: '#DC2626', fontWeight: 700 }}>
-                          <span class="session-pill-tag" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
-                            CPD
-                          </span>
-                          <span class="session-title-text">{sessionTitle}</span>
-                        </div>
-                      )}
-                      <div class="status-badge badge-full">Slot Is Full</div>
-                    </>
-                  ) : (
-                    <>
-                      {sessionTitle && (
-                        <div class="school-name-preview" title={sessionTitle} style={{ color: item.slotStatus === 'FILLING_FAST' ? '#D97706' : '#00897B', fontWeight: 700 }}>
-                          <span class="session-pill-tag" style={{
-                            background: item.slotStatus === 'FILLING_FAST' ? '#FFFBEB' : '#E6F9F6',
-                            color: item.slotStatus === 'FILLING_FAST' ? '#D97706' : '#00897B',
-                            border: item.slotStatus === 'FILLING_FAST' ? '1px solid #FDE68A' : '1px solid #B2DFDB'
-                          }}>
-                            CPD
-                          </span>
-                          <span class="session-title-text">{sessionTitle}</span>
-                        </div>
-                      )}
-                      <div class={`status-badge ${item.slotStatus === 'FILLING_FAST' ? 'badge-fast' : 'badge-available'}`}>
-                        {item.slotStatus === 'FILLING_FAST' ? 'Filling Fast' : 'Schedule'}
+                      <div class="school-name-preview" title={sessionTitle} style={{ color: item.slotStatus === 'SESSION_COMPLETED' ? '#475569' : item.slotStatus === 'SLOT_FULL' ? '#DC2626' : item.slotStatus === 'FILLING_FAST' ? '#D97706' : '#00897B', fontWeight: 700 }}>
+                        <span class="session-pill-tag" style={{
+                          background: item.slotStatus === 'SESSION_COMPLETED' ? '#F1F5F9' : item.slotStatus === 'SLOT_FULL' ? '#FEF2F2' : item.slotStatus === 'FILLING_FAST' ? '#FFFBEB' : '#E6F9F6',
+                          color: item.slotStatus === 'SESSION_COMPLETED' ? '#475569' : item.slotStatus === 'SLOT_FULL' ? '#DC2626' : item.slotStatus === 'FILLING_FAST' ? '#D97706' : '#00897B',
+                          border: item.slotStatus === 'SESSION_COMPLETED' ? '1px solid #CBD5E1' : item.slotStatus === 'SLOT_FULL' ? '1px solid #FECACA' : item.slotStatus === 'FILLING_FAST' ? '1px solid #FDE68A' : '1px solid #B2DFDB'
+                        }}>
+                          CPD
+                        </span>
+                        <span class="session-title-text">{sessionTitle}</span>
                       </div>
+
+                      {item.isPast ? (
+                        <div class="status-badge badge-past">Past</div>
+                      ) : item.slotStatus === 'SESSION_COMPLETED' ? (
+                        <div class="status-badge" style={{ background: '#334155', color: '#FFFFFF', border: '1px solid #1E293B' }}>Session Completed</div>
+                      ) : item.slotStatus === 'SLOT_FULL' ? (
+                        <div class="status-badge badge-full">Slot Is Full</div>
+                      ) : (
+                        <div class={`status-badge ${item.slotStatus === 'FILLING_FAST' ? 'badge-fast' : 'badge-available'}`}>
+                          {item.slotStatus === 'FILLING_FAST' ? 'Filling Fast' : 'Schedule'}
+                        </div>
+                      )}
+
+                      {/* Blue Meeting Link Button (only when session is active/upcoming) */}
+                      {item.config.tutorialLink && item.slotStatus !== 'SESSION_COMPLETED' && !item.isPast && (
+                        <a
+                          href={item.config.tutorialLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            marginTop: '0.35rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            gap: '0.25rem', background: '#2563EB', color: '#FFFFFF', borderRadius: '6px',
+                            padding: '0.28rem 0.55rem', fontSize: '0.74rem', fontWeight: 800, textDecoration: 'none',
+                            boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)', transition: 'all 0.15s ease'
+                          }}
+                        >
+                          🔗 Meeting Link
+                        </a>
+                      )}
                     </>
                   )}
                 </div>

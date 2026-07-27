@@ -1026,7 +1026,7 @@
     </a>
     <div class="header-actions">
       <a href="https://aeskills.github.io/CPD/" class="btn-back" target="_blank" rel="noreferrer" style="background: #E52E06; color: #FFFFFF; border: none; padding: 0.6rem 1.4rem; border-radius: 50px; font-weight: 800; font-size: 0.88rem; text-decoration: none; box-shadow: 0 4px 12px rgba(229, 46, 6, 0.3); display: inline-block;">
-        Preloaded CPD Session
+        Back to home
       </a>
     </div>
   </header>
@@ -1190,7 +1190,7 @@
       'UP': 'Uttar Pradesh',
       'GA': 'Goa',
       'DL': 'Delhi',
-      'RJ': 'Rajasthan',
+      'UT': 'Uttarakhand',
       'GJ': 'Gujarat',
       'ALL': 'All States'
     };
@@ -1207,9 +1207,12 @@
       'ga': 'GA',
       'delhi': 'DL',
       'dl': 'DL',
-      'raj': 'RJ',
-      'rajasthan': 'RJ',
-      'rj': 'RJ',
+      'ut': 'UT',
+      'uttarakhand': 'UT',
+      'uttrakhand': 'UT',
+      'raj': 'UT',
+      'rajasthan': 'UT',
+      'rj': 'UT',
       'gujarat': 'GJ',
       'gj': 'GJ'
     };
@@ -1218,7 +1221,7 @@
       'UP': 'https://aeskills.github.io/CPD/up',
       'GA': 'https://aeskills.github.io/CPD/goa',
       'DL': 'https://aeskills.github.io/CPD/delhi',
-      'RJ': 'https://aeskills.github.io/CPD/rajasthan',
+      'UT': 'https://aeskills.github.io/CPD/UT',
       'GJ': 'https://aeskills.github.io/CPD/gujarat',
       'CR': 'https://aeskills.github.io/CPD/'
     };
@@ -1486,7 +1489,7 @@
         } else {
           config = adminSessionConfigs[dateStr] || {};
           if (!config.sessionName) {
-            const stList = ['UP', 'GA', 'DL', 'RJ', 'GJ'];
+            const stList = ['UP', 'GA', 'DL', 'UT', 'GJ'];
             for (let st of stList) {
               if (adminSessionConfigs[st + '_' + dateStr]) {
                 config = adminSessionConfigs[st + '_' + dateStr];
@@ -1494,28 +1497,36 @@
               }
             }
           }
-        }
+        const hasActivity = Boolean(config.sessionName);
 
-        const sessionTitle = config.sessionName || 'CPD Session';
-        const slotStatus = config.slotStatus || 'SCHEDULE';
-
-        if (isPast) {
-          classes.push('day-past');
-          cellContent += `<div class="status-badge badge-past">Past</div>`;
-        } else if (slotStatus === 'SLOT_FULL') {
-          classes.push('day-blocked');
-          if (config.sessionName) {
+        if (hasActivity) {
+          if (isPast) {
+            classes.push('day-past');
+            cellContent += `
+              <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #64748B; font-weight: 700; margin-top: 0.2rem;">
+                <span class="session-pill-tag" style="background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
+              </div>
+              <div class="status-badge badge-past">Past</div>
+            `;
+          } else if (slotStatus === 'SESSION_COMPLETED') {
+            classes.push('day-blocked');
+            cellContent += `
+              <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #475569; font-weight: 700; margin-top: 0.2rem;">
+                <span class="session-pill-tag" style="background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
+              </div>
+              <div class="status-badge" style="background: #334155; color: #FFFFFF; border: 1px solid #1E293B;">Session Completed</div>
+            `;
+          } else if (slotStatus === 'SLOT_FULL') {
+            classes.push('day-blocked');
             cellContent += `
               <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #DC2626; font-weight: 700; margin-top: 0.2rem;">
                 <span class="session-pill-tag" style="background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
               </div>
+              <div class="status-badge badge-full">Slot Is Full</div>
             `;
-          }
-          cellContent += `<div class="status-badge badge-full">Slot Is Full</div>`;
-        } else {
-          classes.push('day-available');
-          if (slotStatus === 'FILLING_FAST') {
-            if (config.sessionName) {
+          } else {
+            classes.push('day-available');
+            if (slotStatus === 'FILLING_FAST') {
               cellContent += `
                 <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #D97706; font-weight: 700; margin-top: 0.2rem;">
                   <span class="session-pill-tag" style="background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
@@ -1523,36 +1534,46 @@
                 <div class="status-badge badge-fast">Filling Fast</div>
               `;
             } else {
-              cellContent += `<div class="status-badge badge-fast">Filling Fast</div>`;
-            }
-          } else {
-            // SCHEDULE (Fresh Emerald Teal)
-            if (config.sessionName) {
               cellContent += `
                 <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #00897B; font-weight: 700; margin-top: 0.2rem;">
                   <span class="session-pill-tag" style="background: #E6F9F6; color: #00897B; border: 1px solid #B2DFDB;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
                 </div>
                 <div class="status-badge badge-available">Schedule</div>
               `;
-            } else {
-              cellContent += `<div class="status-badge badge-available">Schedule</div>`;
             }
+          }
+
+          // Blue Meeting Link Button (only when session is active/upcoming)
+          if (config.tutorialLink && slotStatus !== 'SESSION_COMPLETED' && !isPast) {
+            cellContent += `
+              <a href="${escapeHtml(config.tutorialLink)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="margin-top: 0.35rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; background: #2563EB; color: #FFFFFF; border-radius: 6px; padding: 0.28rem 0.55rem; font-size: 0.74rem; font-weight: 800; text-decoration: none; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); transition: all 0.15s ease;">
+                🔗 Meeting Link
+              </a>
+            `;
           }
         }
 
         dayCell.className = classes.join(' ');
+        dayCell.style.cursor = hasActivity ? 'pointer' : 'default';
         dayCell.innerHTML = cellContent;
 
-        if (slotStatus === 'SLOT_FULL' && !isPast) {
-          dayCell.onclick = function(e) {
-            if (e) e.stopPropagation();
-            showCustomAlert('Slot Full / Blocked', 'This session slot is currently full or blocked by the administrator. Please select another available date.', '🔒');
-          };
-        } else if (!isPast) {
-          dayCell.onclick = function(e) {
-            if (e) e.stopPropagation();
-            openBookingModal(cellDate, dateStr);
-          };
+        if (hasActivity) {
+          if (slotStatus === 'SESSION_COMPLETED' && !isPast) {
+            dayCell.onclick = function(e) {
+              if (e) e.stopPropagation();
+              showCustomAlert('Session Completed', 'This CPD session has ended and is marked as completed by the administrator.', '✅');
+            };
+          } else if (slotStatus === 'SLOT_FULL' && !isPast) {
+            dayCell.onclick = function(e) {
+              if (e) e.stopPropagation();
+              showCustomAlert('Slot Full / Blocked', 'This session slot is currently full or blocked by the administrator. Please select another available date.', '🔒');
+            };
+          } else if (!isPast) {
+            dayCell.onclick = function(e) {
+              if (e) e.stopPropagation();
+              openBookingModal(cellDate, dateStr);
+            };
+          }
         }
 
         calendarDaysGrid.appendChild(dayCell);
@@ -1622,65 +1643,31 @@
           </div>
         </div>
 
-        <div style="background: #FEF2F2; border: 1px solid #FECACA; padding: 0.75rem 1.1rem; border-radius: 10px; margin-bottom: 0.75rem; font-size: 0.85rem; color: #991B1B; line-height: 1.5; font-weight: 700;">
-          ⚠️ Please fill all your details carefully.
-        </div>
-
-        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 0.85rem 1.1rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.85rem; color: #334155; line-height: 1.5;">
-          💡 <strong>Notice:</strong> The Microsoft Teams session meeting link will be dispatched directly to your SPOC email address upon schedule confirmation.
-        </div>
-
-        <div style="font-size: 0.95rem; font-weight: 800; color: #0F172A; margin-bottom: 0.85rem;">
-          Register for this CPD Session
-        </div>
-
-        <!-- Registrant Role Segmented Toggle -->
-        <div style="margin-bottom: 1.25rem;">
-          <div style="font-size: 0.78rem; font-weight: 800; color: #64748B; text-transform: uppercase; margin-bottom: 0.4rem; letter-spacing: 0.5px;">
-            Registering As <span style="color: #E52E06;">*</span>
-          </div>
-          <div style="display: flex; gap: 0.5rem; background: #F1F5F9; padding: 0.3rem; border-radius: 10px; border: 1px solid #E2E8F0;">
-            <button
-              type="button"
-              id="btnRoleSpoc"
-              class="role-toggle-btn active"
-              onclick="selectRegistrantRole('SPOC')"
-              style="flex: 1; padding: 0.65rem 0.5rem; border-radius: 8px; border: none; font-weight: 800; font-size: 0.88rem; cursor: pointer; background: #FFFFFF; color: #E52E06; box-shadow: 0 2px 5px rgba(0,0,0,0.08); transition: all 0.2s ease;"
-            >
-              🏢 SPOC (Group Booking)
-            </button>
-            <button
-              type="button"
-              id="btnRoleTeacher"
-              class="role-toggle-btn"
-              onclick="selectRegistrantRole('Teacher')"
-              style="flex: 1; padding: 0.65rem 0.5rem; border-radius: 8px; border: none; font-weight: 800; font-size: 0.88rem; cursor: pointer; background: transparent; color: #64748B; transition: all 0.2s ease;"
-            >
-              👨‍🏫 Teacher (Individual)
-            </button>
-          </div>
+        <div style="background: #FFF1F0; border: 1px solid #FFC4BC; padding: 0.85rem 1.1rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.88rem; color: #991B1B; font-weight: 700;">
+          Please fill all your details carefully.
         </div>
 
         <form id="bookingForm" novalidate>
           <input type="hidden" id="inputSessionDate" name="sessionDate" value="${dateStr}">
           <input type="hidden" id="inputSessionName" name="sessionName" value="${escapeHtml(activeSessionName)}">
-          <input type="hidden" id="inputRegistrantType" name="registrantType" value="SPOC">
+          <input type="hidden" id="inputRegistrantType" name="registrantType" value="Teacher">
+          <input type="hidden" id="inputTotalTeachers" name="totalTeachers" value="1">
 
           <div class="form-group">
-            <label for="inputSpocName" id="labelSpocName">SPOC Name <span class="required">*</span></label>
+            <label for="inputSpocName" id="labelSpocName">Teacher Name <span class="required">*</span></label>
             <input type="text" id="inputSpocName" class="input-control" placeholder="e.g. Ananya Sharma" required>
             <div class="error-text" id="errSpocName">Please enter full name.</div>
           </div>
 
           <div class="form-group">
-            <label for="inputSpocPhone" id="labelSpocPhone">SPOC Phone Number <span class="required">*</span></label>
+            <label for="inputSpocPhone" id="labelSpocPhone">Teacher Phone Number <span class="required">*</span></label>
             <input type="tel" id="inputSpocPhone" class="input-control" placeholder="10-digit mobile number (e.g. 9876543210)" required>
             <div class="error-text" id="errSpocPhone">Please enter a valid 10-digit phone number.</div>
           </div>
 
           <div class="form-group">
-            <label for="inputSpocEmail" id="labelSpocEmail">SPOC Email ID <span class="required">*</span></label>
-            <input type="email" id="inputSpocEmail" class="input-control" placeholder="spoc@school.edu.in" required>
+            <label for="inputSpocEmail" id="labelSpocEmail">Teacher Email ID <span class="required">*</span></label>
+            <input type="email" id="inputSpocEmail" class="input-control" placeholder="teacher@school.edu.in" required>
             <div class="error-text" id="errSpocEmail">Please enter a valid email address.</div>
           </div>
 
@@ -1688,12 +1675,6 @@
             <label for="inputSchoolName">School Name <span class="required">*</span></label>
             <input type="text" id="inputSchoolName" class="input-control" placeholder="e.g. St. Xavier's High School" required>
             <div class="error-text" id="errSchoolName">Please enter your school name.</div>
-          </div>
-
-          <div class="form-group" id="groupTotalTeachers">
-            <label for="inputTotalTeachers">Total Teachers Attending <span class="required">*</span></label>
-            <input type="number" id="inputTotalTeachers" class="input-control" placeholder="e.g. 15" min="1" required>
-            <div class="error-text" id="errTotalTeachers">Please enter a positive number of teachers.</div>
           </div>
 
           <!-- Consent Box -->

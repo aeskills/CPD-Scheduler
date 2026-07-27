@@ -283,7 +283,7 @@ export default function AdminPage() {
               { code: 'UP', name: 'Uttar Pradesh' },
               { code: 'GA', name: 'Goa' },
               { code: 'DL', name: 'Delhi' },
-              { code: 'RJ', name: 'Rajasthan' },
+              { code: 'UT', name: 'Uttarakhand' },
               { code: 'GJ', name: 'Gujarat' }
             ].map(st => (
               <button

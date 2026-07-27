@@ -5,7 +5,7 @@ const PRELOADED_URL_MAP = {
   'UP': 'https://aeskills.github.io/CPD/up',
   'GA': 'https://aeskills.github.io/CPD/goa',
   'DL': 'https://aeskills.github.io/CPD/delhi',
-  'RJ': 'https://aeskills.github.io/CPD/rajasthan',
+  'UT': 'https://aeskills.github.io/CPD/ut',
   'GJ': 'https://aeskills.github.io/CPD/gujarat',
   'CR': 'https://aeskills.github.io/CPD/'
 };
@@ -33,7 +33,7 @@ export default function Header({ isAdmin, activeStateName, activeStateCode = 'CR
             borderRadius: '50px', fontWeight: 800, fontSize: '0.88rem', textDecoration: 'none',
             boxShadow: '0 4px 12px rgba(229, 46, 6, 0.3)', display: 'inline-block'
           }}>
-            Preloaded CPD Session
+            Back to home
           </a>
         )}
       </div>
