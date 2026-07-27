@@ -387,7 +387,7 @@
 
     .calendar-weekdays {
       display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
+      grid-template-columns: repeat(7, 14.2857%);
       background: #F8FAFC;
       border-bottom: 1px solid var(--border-color);
       text-align: center;
@@ -404,7 +404,7 @@
 
     .calendar-days {
       display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
+      grid-template-columns: repeat(7, 14.2857%);
       gap: 1px;
       background: var(--border-color);
     }
@@ -602,10 +602,10 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: block;
-      width: 100%;
+      display: inline-block;
+      width: 0;
       min-width: 0;
-      flex: 1;
+      flex: 1 1 0%;
     }
 
     .school-count-pill {
