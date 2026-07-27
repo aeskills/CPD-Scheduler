@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import AdminLoginModal from '../components/AdminLoginModal';
-import AdminConfigModal from '../components/AdminConfigModal';
+import AdminConfigModal, { normalizeSessions } from '../components/AdminConfigModal';
 import AdminViewBookingsModal from '../components/AdminViewBookingsModal';
 import AdminEditBookingModal from '../components/AdminEditBookingModal';
 import { fetchAdminDataFromBackend, postToBackend, broadcastLiveSync, subscribeLiveSync } from '../services/api';
@@ -82,10 +82,18 @@ export default function AdminPage() {
   };
 
   const handleSaveConfig = async (data) => {
-    const { dateStr, state, sessionName, tutorialLink, slotStatus, teachersPresent } = data;
+    const { dateStr, state, sessions, sessionName, sessionTime, tutorialLink, slotStatus, teachersPresent } = data;
     const stKey = state + '_' + dateStr;
 
-    const newConfig = { sessionName, tutorialLink, slotStatus, teachersPresent, state };
+    const newConfig = {
+      sessions: sessions || [],
+      sessionName: sessionName || '',
+      sessionTime: sessionTime || '',
+      tutorialLink: tutorialLink || '',
+      slotStatus: slotStatus || 'SCHEDULE',
+      teachersPresent: teachersPresent || '',
+      state: state
+    };
 
     setAdminSessionConfigs(prev => {
       const next = { ...prev, [stKey]: newConfig, [dateStr]: newConfig };
@@ -100,6 +108,7 @@ export default function AdminPage() {
       sessionDate: dateStr,
       state: state,
       sessionName: sessionName,
+      sessionTime: sessionTime,
       tutorialLink: tutorialLink,
       slotStatus: slotStatus,
       teachersPresent: teachersPresent
@@ -111,9 +120,14 @@ export default function AdminPage() {
   const handleUpdateTeachersPresent = async (dateStr, teachersPresentVal) => {
     const stKey = currentAdminState + '_' + dateStr;
     const existing = adminSessionConfigs[stKey] || {};
+    const existingNorm = normalizeSessions(existing);
+    const updatedSessions = existingNorm.map(s => ({ ...s, teachersPresent: teachersPresentVal }));
+
     const updatedConfig = {
       ...existing,
+      sessions: updatedSessions,
       sessionName: existing.sessionName || 'CPD Session',
+      sessionTime: existing.sessionTime || '',
       tutorialLink: existing.tutorialLink || '',
       slotStatus: existing.slotStatus || 'SCHEDULE',
       teachersPresent: teachersPresentVal,
@@ -133,6 +147,7 @@ export default function AdminPage() {
       sessionDate: dateStr,
       state: currentAdminState,
       sessionName: updatedConfig.sessionName,
+      sessionTime: updatedConfig.sessionTime,
       tutorialLink: updatedConfig.tutorialLink,
       slotStatus: updatedConfig.slotStatus,
       teachersPresent: teachersPresentVal
@@ -300,42 +315,42 @@ export default function AdminPage() {
         </section>
 
         {/* Toolbar */}
-        <div class="calendar-toolbar">
-          <div class="current-month-display">
-            <h2 class="month-title">{monthNames[month]} {year}</h2>
-            <div class="nav-buttons">
-              <button class="btn-nav" onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>&lt;</button>
-              <button class="btn-today" onClick={() => setCurrentDate(new Date())}>Today</button>
-              <button class="btn-nav" onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>&gt;</button>
+        <div className="calendar-toolbar">
+          <div className="current-month-display">
+            <h2 className="month-title">{monthNames[month]} {year}</h2>
+            <div className="nav-buttons">
+              <button className="btn-nav" onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>&lt;</button>
+              <button className="btn-today" onClick={() => setCurrentDate(new Date())}>Today</button>
+              <button className="btn-nav" onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>&gt;</button>
             </div>
           </div>
         </div>
 
         {/* Calendar Grid */}
-        <div class="calendar-container">
-          <div class="calendar-weekdays">
+        <div className="calendar-container">
+          <div className="calendar-weekdays">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-              <div key={d} class="weekday">{d}</div>
+              <div key={d} className="weekday">{d}</div>
             ))}
           </div>
 
-          <div class="calendar-days">
+          <div className="calendar-days">
             {prevMonthDays.map(prevNum => (
-              <div key={`prev-${prevNum}`} class="day-cell other-month">
-                <span class="day-number">{prevNum}</span>
+              <div key={`prev-${prevNum}`} className="day-cell other-month">
+                <span className="day-number">{prevNum}</span>
               </div>
             ))}
 
             {currentMonthDays.map(item => {
-              const sessionTitle = item.config.sessionName;
+              const normSessions = normalizeSessions(item.config);
 
               return (
-                <div key={`day-${item.day}`} class="day-cell">
-                  <div class="day-header">
-                    <span class="day-number">{item.day}</span>
+                <div key={`day-${item.day}`} className="day-cell">
+                  <div className="day-header">
+                    <span className="day-number">{item.day}</span>
                     <button
                       type="button"
-                      class="btn-add-session"
+                      className="btn-add-session"
                       title="Setup CPD Session for this date"
                       onClick={() => setConfigModalDate(item.dateStr)}
                     >
@@ -343,19 +358,56 @@ export default function AdminPage() {
                     </button>
                   </div>
 
-                  {sessionTitle && (
-                    <div
-                      class="session-title-badge"
-                      title={sessionTitle}
-                      onClick={() => setConfigModalDate(item.dateStr)}
-                    >
-                      🏷️ {sessionTitle}
+                  {normSessions.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      {normSessions.map((sess, sIdx) => {
+                        const effStatus = getSessionEffectiveStatus(item.dateStr, sess);
+                        const isEnded = effStatus === 'SESSION_COMPLETED';
+
+                        return (
+                          <div
+                            key={sess.id || sIdx}
+                            className="session-title-badge"
+                            title={`${sess.sessionName}${sess.sessionTime ? ` (${sess.sessionTime})` : ''} - ${isEnded ? 'Ended' : effStatus}`}
+                            onClick={() => setConfigModalDate(item.dateStr)}
+                            style={{
+                              display: 'flex', flexDirection: 'column', gap: '0.15rem',
+                              borderLeft: isEnded ? '3px solid #64748B' : effStatus === 'SLOT_FULL' ? '3px solid #DC2626' : effStatus === 'FILLING_FAST' ? '3px solid #D97706' : '3px solid #E52E06',
+                              padding: '0.35rem 0.45rem',
+                              background: isEnded ? '#F1F5F9' : '#F8FAFC'
+                            }}
+                          >
+                            <div style={{ fontWeight: 800, fontSize: '0.74rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isEnded ? '#64748B' : '#0F172A' }}>
+                              {isEnded ? '⚫' : '🏷️'} {sess.sessionName}
+                            </div>
+                            {sess.sessionTime && (
+                              <div style={{ fontSize: '0.68rem', color: isEnded ? '#94A3B8' : '#64748B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                ⏰ {sess.sessionTime} {isEnded && <span style={{ color: '#475569', fontWeight: 800 }}>(Ended)</span>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Quick inline + button to add more sessions */}
+                      <button
+                        type="button"
+                        onClick={() => setConfigModalDate(item.dateStr)}
+                        style={{
+                          background: '#FFF1F0', border: '1px dashed #FFC4BC', color: '#E52E06',
+                          fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.4rem', borderRadius: '4px',
+                          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem',
+                          marginTop: '0.1rem'
+                        }}
+                      >
+                        <Plus size={11} /> Add Session
+                      </button>
                     </div>
                   )}
 
                   {item.totalTeachers > 0 && (
                     <div
-                      class="teacher-count-badge"
+                      className="teacher-count-badge"
                       title="Click to view & edit registered school SPOCs"
                       onClick={() => setViewBookingsDate(item.dateStr)}
                     >
@@ -368,8 +420,8 @@ export default function AdminPage() {
             })}
 
             {nextMonthDays.map(nextNum => (
-              <div key={`next-${nextNum}`} class="day-cell other-month">
-                <span class="day-number">{nextNum}</span>
+              <div key={`next-${nextNum}`} className="day-cell other-month">
+                <span className="day-number">{nextNum}</span>
               </div>
             ))}
           </div>

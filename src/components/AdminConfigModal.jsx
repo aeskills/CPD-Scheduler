@@ -1,28 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Trash2, Clock, Link2, Tag, AlertCircle } from 'lucide-react';
+import { normalizeSessions, isSessionExpired, getSessionEffectiveStatus } from '../utils/sessionUtils';
+
+export { normalizeSessions, isSessionExpired, getSessionEffectiveStatus };
+
+const TIME_PRESETS = [
+  '10:00 AM - 11:30 AM',
+  '11:30 AM - 01:00 PM',
+  '02:00 PM - 03:30 PM',
+  '04:00 PM - 05:30 PM'
+];
 
 export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, existingConfig, onClose, onSave }) {
-  const [targetState, setTargetState] = useState('UP');
-  const [sessionName, setSessionName] = useState('');
-  const [tutorialLink, setTutorialLink] = useState('');
-  const [slotStatus, setSlotStatus] = useState('SCHEDULE');
-  const [teachersPresent, setTeachersPresent] = useState('');
+  const [targetState, setTargetState] = useState('CR');
+  const [sessions, setSessions] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
   // Custom End Session Popup state
   const [showEndPrompt, setShowEndPrompt] = useState(false);
+  const [endSessionIndex, setEndSessionIndex] = useState(null); // null = end all, index = end specific session
   const [endTeachersInput, setEndTeachersInput] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       const defaultSt = currentAdminState !== 'ALL' ? currentAdminState : 'CR';
       setTargetState(existingConfig?.state || defaultSt);
-      setSessionName(existingConfig?.sessionName || '');
-      setTutorialLink(existingConfig?.tutorialLink || '');
-      setSlotStatus(existingConfig?.slotStatus || 'SCHEDULE');
-      setTeachersPresent(existingConfig?.teachersPresent || '');
+      const norm = normalizeSessions(existingConfig);
+      if (norm.length === 0) {
+        setSessions([{
+          id: 's_' + Date.now(),
+          sessionName: '',
+          sessionTime: '10:00 AM - 11:30 AM',
+          tutorialLink: '',
+          slotStatus: 'SCHEDULE',
+          teachersPresent: ''
+        }]);
+      } else {
+        setSessions(norm);
+      }
       setShowEndPrompt(false);
       setEndTeachersInput('');
+      setEndSessionIndex(null);
     }
   }, [isOpen, dateStr, currentAdminState, existingConfig]);
 
@@ -43,23 +61,60 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
     'GJ': 'Gujarat (GJ)'
   };
 
+  const handleAddSession = () => {
+    setSessions(prev => [
+      ...prev,
+      {
+        id: 's_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+        sessionName: '',
+        sessionTime: prev.length === 1 ? '02:00 PM - 03:30 PM' : '04:00 PM - 05:30 PM',
+        tutorialLink: prev[0]?.tutorialLink || '',
+        slotStatus: 'SCHEDULE',
+        teachersPresent: ''
+      }
+    ]);
+  };
+
+  const handleUpdateSessionField = (index, field, value) => {
+    setSessions(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const handleRemoveSession = (index) => {
+    if (sessions.length <= 1) return;
+    setSessions(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     setIsSaving(true);
+    
+    // Filter out completely blank sessions
+    const validSessions = sessions.filter(s => s.sessionName.trim().length > 0);
+    const finalSessions = validSessions.length > 0 ? validSessions : sessions;
+
     await onSave({
       dateStr,
       state: targetState,
-      sessionName: sessionName.trim(),
-      tutorialLink: tutorialLink.trim(),
-      slotStatus,
-      teachersPresent: teachersPresent.trim()
+      sessions: finalSessions,
+      // For backwards compatibility:
+      sessionName: finalSessions[0]?.sessionName?.trim() || '',
+      sessionTime: finalSessions[0]?.sessionTime?.trim() || '',
+      tutorialLink: finalSessions[0]?.tutorialLink?.trim() || '',
+      slotStatus: finalSessions[0]?.slotStatus || 'SCHEDULE',
+      teachersPresent: finalSessions[0]?.teachersPresent || ''
     });
     setIsSaving(false);
     onClose();
   };
 
-  const handleOpenEndSessionPrompt = () => {
-    setEndTeachersInput(teachersPresent || '0');
+  const handleOpenEndSessionPrompt = (sIndex = null) => {
+    setEndSessionIndex(sIndex);
+    const initialTeachers = sIndex !== null ? (sessions[sIndex]?.teachersPresent || '0') : (sessions[0]?.teachersPresent || '0');
+    setEndTeachersInput(initialTeachers);
     setShowEndPrompt(true);
   };
 
@@ -67,14 +122,33 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
     if (e) e.preventDefault();
     const tPresent = endTeachersInput.trim() || '0';
     setIsSaving(true);
+
+    let updatedSessions = [...sessions];
+    if (endSessionIndex !== null && updatedSessions[endSessionIndex]) {
+      updatedSessions[endSessionIndex] = {
+        ...updatedSessions[endSessionIndex],
+        slotStatus: 'SESSION_COMPLETED',
+        teachersPresent: tPresent
+      };
+    } else {
+      updatedSessions = updatedSessions.map(s => ({
+        ...s,
+        slotStatus: 'SESSION_COMPLETED',
+        teachersPresent: tPresent
+      }));
+    }
+
     await onSave({
       dateStr,
       state: targetState,
-      sessionName: sessionName.trim() || 'CPD Session',
-      tutorialLink: tutorialLink.trim(),
+      sessions: updatedSessions,
+      sessionName: updatedSessions[0]?.sessionName?.trim() || 'CPD Session',
+      sessionTime: updatedSessions[0]?.sessionTime?.trim() || '',
+      tutorialLink: updatedSessions[0]?.tutorialLink?.trim() || '',
       slotStatus: 'SESSION_COMPLETED',
       teachersPresent: tPresent
     });
+
     setIsSaving(false);
     setShowEndPrompt(false);
     onClose();
@@ -83,87 +157,195 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
   return (
     <>
       <div className="modal-overlay active" style={{ display: 'flex', opacity: 1, pointerEvents: 'auto', zIndex: 1000 }}>
-        <div className="modal-card">
-          <div className="modal-header">
-            <h3>
-              <Plus size={20} color="#E52E06" />
-              Configure Session for <span>{formattedDate}</span>
-            </h3>
+        <div className="modal-card" style={{ maxWidth: '640px', width: '92%' }}>
+          <div className="modal-header" style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+            <div>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.15rem' }}>
+                <Plus size={20} color="#E52E06" />
+                Configure Sessions for <span style={{ color: '#E52E06' }}>{formattedDate}</span>
+              </h3>
+              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '0.15rem' }}>
+                Add single or multiple sessions with specific time slots for teachers.
+              </div>
+            </div>
             <button type="button" className="btn-close-modal" onClick={onClose}><X size={20} /></button>
           </div>
 
-          <div className="modal-body">
+          <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
             <form onSubmit={handleSubmit}>
-              <div className="form-group" style={{ marginBottom: '1.15rem' }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#E52E06', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#E52E06', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                   Target State (Auto-Selected)
                 </div>
                 <div style={{
                   background: '#FFF1F0', border: '1px solid #FFC4BC', color: '#E52E06',
-                  padding: '0.75rem 1rem', borderRadius: '8px', fontWeight: 800, fontSize: '0.95rem',
+                  padding: '0.65rem 0.9rem', borderRadius: '8px', fontWeight: 800, fontSize: '0.92rem',
                   display: 'flex', alignItems: 'center', gap: '0.5rem'
                 }}>
                   📍 {stateNames[targetState] || targetState}
                 </div>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="inputConfigSessionName">Session Name / Title</label>
-                <input
-                  type="text"
-                  id="inputConfigSessionName"
-                  className="input-control"
-                  placeholder="e.g. Series 1 - Session 2 (Digital Literacy)"
-                  value={sessionName}
-                  onChange={(e) => setSessionName(e.target.value)}
-                  required
-                />
+              {/* Sessions List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {sessions.map((sess, idx) => (
+                  <div key={sess.id || idx} style={{
+                    background: '#FFFFFF',
+                    border: '1.5px solid #CBD5E1',
+                    borderRadius: '12px',
+                    padding: '1.1rem 1.25rem',
+                    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
+                    position: 'relative'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.5rem' }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{
+                          background: '#E52E06', color: '#FFFFFF', borderRadius: '50%', width: '22px', height: '22px',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800
+                        }}>{idx + 1}</span>
+                        Session #{idx + 1} Configuration
+                      </div>
+                      {sessions.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSession(idx)}
+                          style={{
+                            background: '#FEF2F2', border: '1px solid #FECACA', color: '#EF4444',
+                            borderRadius: '6px', padding: '0.25rem 0.6rem', fontSize: '0.76rem', fontWeight: 700,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem'
+                          }}
+                        >
+                          <Trash2 size={13} /> Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {isSessionExpired(dateStr, sess.sessionTime) && (
+                      <div style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', padding: '0.4rem 0.65rem', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700, marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Clock size={13} color="#64748B" /> Time Passed: This session has automatically ended.
+                      </div>
+                    )}
+
+                    {/* Session Name */}
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                      <label htmlFor={`sess_name_${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.84rem' }}>
+                        <Tag size={14} color="#E52E06" /> Session Name / Title <span style={{ color: '#E52E06' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id={`sess_name_${idx}`}
+                        className="input-control"
+                        placeholder="e.g. Socio emotional Learning (Session 1)"
+                        value={sess.sessionName}
+                        onChange={(e) => handleUpdateSessionField(idx, 'sessionName', e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    {/* Session Time Field with Presets */}
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                      <label htmlFor={`sess_time_${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.84rem' }}>
+                        <Clock size={14} color="#E52E06" /> Session Time <span style={{ color: '#E52E06' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id={`sess_time_${idx}`}
+                        className="input-control"
+                        placeholder="e.g. 10:00 AM - 11:30 AM"
+                        value={sess.sessionTime}
+                        onChange={(e) => handleUpdateSessionField(idx, 'sessionTime', e.target.value)}
+                        required
+                      />
+
+                      {/* Quick Presets */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.45rem' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B', alignSelf: 'center', marginRight: '0.2rem' }}>Presets:</span>
+                        {TIME_PRESETS.map((pTime) => (
+                          <button
+                            key={pTime}
+                            type="button"
+                            onClick={() => handleUpdateSessionField(idx, 'sessionTime', pTime)}
+                            style={{
+                              background: sess.sessionTime === pTime ? '#FFF1F0' : '#F1F5F9',
+                              border: `1px solid ${sess.sessionTime === pTime ? '#FFC4BC' : '#CBD5E1'}`,
+                              color: sess.sessionTime === pTime ? '#E52E06' : '#334155',
+                              padding: '0.18rem 0.5rem', borderRadius: '50px', fontSize: '0.73rem', fontWeight: 700,
+                              cursor: 'pointer', transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {pTime}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tutorial Link */}
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                      <label htmlFor={`sess_link_${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.84rem' }}>
+                        <Link2 size={14} color="#E52E06" /> Teams / Tutorial Meeting Link
+                      </label>
+                      <input
+                        type="url"
+                        id={`sess_link_${idx}`}
+                        className="input-control"
+                        placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                        value={sess.tutorialLink}
+                        onChange={(e) => handleUpdateSessionField(idx, 'tutorialLink', e.target.value)}
+                      />
+                    </div>
+
+                    {/* Slot Status */}
+                    <div className="form-group" style={{ marginBottom: '0.25rem' }}>
+                      <label htmlFor={`sess_status_${idx}`} style={{ fontWeight: 700, color: '#0F172A', display: 'block', marginBottom: '0.35rem', fontSize: '0.84rem' }}>
+                        Session Slot Availability
+                      </label>
+                      <select
+                        id={`sess_status_${idx}`}
+                        className="input-control"
+                        style={{ background: '#FAFAFC', color: '#0F172A', fontWeight: 700, padding: '0.65rem', borderRadius: '8px', width: '100%', fontSize: '0.88rem', cursor: 'pointer' }}
+                        value={sess.slotStatus}
+                        onChange={(e) => handleUpdateSessionField(idx, 'slotStatus', e.target.value)}
+                      >
+                        <option value="SCHEDULE" style={{ color: '#00897B', fontWeight: 700 }}>🟢 SCHEDULE — Open for Booking</option>
+                        <option value="FILLING_FAST" style={{ color: '#D97706', fontWeight: 700 }}>🟠 FILLING FAST — Slot will be full shortly</option>
+                        <option value="SLOT_FULL" style={{ color: '#DC2626', fontWeight: 700 }}>🔴 SLOT IS FULL — Blocked (No new bookings allowed)</option>
+                        <option value="SESSION_COMPLETED" style={{ color: '#475569', fontWeight: 700 }}>⚫ SESSION COMPLETED — Ended & blocked</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="form-group">
-                <label htmlFor="inputConfigTutorialLink">Tutorial / Teams Meeting Link</label>
-                <input
-                  type="url"
-                  id="inputConfigTutorialLink"
-                  className="input-control"
-                  placeholder="https://teams.microsoft.com/l/meetup-join/..."
-                  value={tutorialLink}
-                  onChange={(e) => setTutorialLink(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginTop: '1.25rem' }}>
-                <label htmlFor="selectConfigSlotStatus" style={{ fontWeight: 700, color: '#E52E06', display: 'block', marginBottom: '0.4rem' }}>
-                  Slot Status & Availability
-                </label>
-                <select
-                  id="selectConfigSlotStatus"
-                  className="input-control"
-                  style={{ background: '#FAFAFC', color: '#0F172A', fontWeight: 700, padding: '0.75rem', borderRadius: '8px', width: '100%', fontSize: '0.92rem', cursor: 'pointer' }}
-                  value={slotStatus}
-                  onChange={(e) => setSlotStatus(e.target.value)}
-                >
-                  <option value="SCHEDULE" style={{ background: '#FFFFFF', color: '#00897B', fontWeight: 700 }}>🟢 SCHEDULE — Open for Booking</option>
-                  <option value="FILLING_FAST" style={{ background: '#FFFFFF', color: '#D97706', fontWeight: 700 }}>🟠 FILLING FAST — Slot will be full shortly</option>
-                  <option value="SLOT_FULL" style={{ background: '#FFFFFF', color: '#DC2626', fontWeight: 700 }}>🔴 SLOT IS FULL / BLOCKED — Blocked (No new bookings allowed)</option>
-                  <option value="SESSION_COMPLETED" style={{ background: '#FFFFFF', color: '#475569', fontWeight: 700 }}>⚫ SESSION IS COMPLETED — Session ended & day blocked</option>
-                </select>
-              </div>
+              {/* Add Session Button */}
+              <button
+                type="button"
+                onClick={handleAddSession}
+                style={{
+                  width: '100%', marginTop: '1.25rem', padding: '0.75rem',
+                  background: '#F8FAFC', border: '2px dashed #CBD5E1', borderRadius: '12px',
+                  color: '#E52E06', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#E52E06'; e.currentTarget.style.background = '#FFF1F0'; }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#F8FAFC'; }}
+              >
+                <Plus size={18} /> Add Another Session Slot to Date
+              </button>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
                 <button type="submit" className="btn-submit" disabled={isSaving} style={{ flex: 2 }}>
-                  <span>{isSaving ? 'Saving...' : 'Save Session Configuration'}</span>
+                  <span>{isSaving ? 'Saving...' : `Save ${sessions.length > 1 ? `${sessions.length} Sessions` : 'Session Configuration'}`}</span>
                   {isSaving && <div className="spinner"></div>}
                 </button>
 
                 <button
                   type="button"
-                  onClick={handleOpenEndSessionPrompt}
+                  onClick={() => handleOpenEndSessionPrompt(null)}
                   disabled={isSaving}
                   style={{
                     flex: 1, background: '#334155', color: '#FFFFFF', border: 'none',
-                    borderRadius: '10px', fontWeight: 800, fontSize: '0.88rem',
+                    borderRadius: '50px', fontWeight: 800, fontSize: '0.88rem',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem'
                   }}
                 >
@@ -175,7 +357,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
         </div>
       </div>
 
-      {/* Custom End Session Confirmation Popup (No native browser prompt/localhost text!) */}
+      {/* End Session Confirmation Popup */}
       {showEndPrompt && (
         <div className="modal-overlay active" style={{ display: 'flex', opacity: 1, pointerEvents: 'auto', zIndex: 1100, background: 'rgba(15, 23, 42, 0.65)' }}>
           <div className="modal-card" style={{ maxWidth: '460px', width: '90%' }}>
@@ -248,3 +430,4 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
     </>
   );
 }
+

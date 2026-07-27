@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import BookingModal from '../components/BookingModal';
 import CustomAlertModal from '../components/CustomAlertModal';
+import { normalizeSessions, getSessionEffectiveStatus } from '../utils/sessionUtils';
 import { fetchAdminDataFromBackend, postToBackend, broadcastLiveSync, subscribeLiveSync } from '../services/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -133,6 +134,7 @@ export default function SchedulerPage() {
 
   // Modal States
   const [bookingModalDate, setBookingModalDate] = useState(null);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [alertModalState, setAlertModalState] = useState({ isOpen: false, title: '', message: '', icon: '🔒' });
 
   const activeStateName = STATE_NAMES[userSelectedState] || userSelectedState;
@@ -209,6 +211,7 @@ export default function SchedulerPage() {
       sessionDate: bookingData.sessionDate,
       state: bookingData.state,
       sessionName: bookingData.sessionName,
+      sessionTime: bookingData.sessionTime,
       registrantType: bookingData.registrantType || 'SPOC',
       spocName: bookingData.spocName,
       spocPhone: bookingData.spocPhone,
@@ -251,8 +254,7 @@ export default function SchedulerPage() {
 
     const stKey = userSelectedState + '_' + dateStr;
     const config = adminSessionConfigs[stKey] || adminSessionConfigs[dateStr] || {};
-
-    const slotStatus = config.slotStatus || 'SCHEDULE';
+    const normSessions = normalizeSessions(config);
 
     currentMonthDays.push({
       day,
@@ -261,7 +263,7 @@ export default function SchedulerPage() {
       isPast,
       isToday,
       config,
-      slotStatus
+      normSessions
     });
   }
 
@@ -272,28 +274,30 @@ export default function SchedulerPage() {
     nextMonthDays.push(j);
   }
 
-  const handleCellClick = (item) => {
-    if (!item.config?.sessionName) return; // Do not open modal on dates without an activity
+  const handleSessionClick = (item, sess) => {
     if (item.isPast) return;
-    if (item.slotStatus === 'SESSION_COMPLETED') {
+    const effStatus = getSessionEffectiveStatus(item.dateStr, sess);
+
+    if (effStatus === 'SESSION_COMPLETED') {
       setAlertModalState({
         isOpen: true,
-        title: 'Session Completed',
-        message: 'This CPD session has ended and is marked as completed by the administrator.',
-        icon: '✅'
+        title: 'Session Ended / Completed',
+        message: `The CPD session "${sess.sessionName}" ${sess.sessionTime ? `(${sess.sessionTime})` : ''} has ended and is no longer accepting new bookings.`,
+        icon: '🏁'
       });
       return;
     }
-    if (item.slotStatus === 'SLOT_FULL') {
+    if (effStatus === 'SLOT_FULL') {
       setAlertModalState({
         isOpen: true,
         title: 'Slot Full / Blocked',
-        message: 'This session slot is currently full or blocked by the administrator. Please select another available date.',
+        message: `The session slot "${sess.sessionName}" is currently full or blocked by the administrator. Please select another session slot.`,
         icon: '🔒'
       });
-    } else {
-      setBookingModalDate(item.dateStr);
+      return;
     }
+    setSelectedSessionId(sess.id);
+    setBookingModalDate(item.dateStr);
   };
 
   if (!userSelectedState) {
@@ -402,85 +406,117 @@ export default function SchedulerPage() {
             ))}
 
             {currentMonthDays.map(item => {
-              const sessionTitle = item.config.sessionName;
-              const hasActivity = Boolean(sessionTitle);
+              const hasActivity = item.normSessions.length > 0;
 
               let cellClass = 'day-cell';
               if (item.isToday) cellClass += ' is-today';
 
-              if (hasActivity) {
-                if (item.isPast) {
-                  cellClass += ' day-past';
-                } else if (item.slotStatus === 'SLOT_FULL' || item.slotStatus === 'SESSION_COMPLETED') {
-                  cellClass += ' day-blocked';
-                } else {
-                  cellClass += ' day-available';
-                }
-              }
-
               return (
                 <div
                   key={`day-${item.day}`}
-                  class={cellClass}
+                  className={cellClass}
                   style={{ cursor: hasActivity ? 'pointer' : 'default' }}
-                  onClick={() => handleCellClick(item)}
                 >
-                  <div class="day-header">
-                    <span class="day-number">{item.day}</span>
+                  <div className="day-header">
+                    <span className="day-number">{item.day}</span>
                   </div>
 
-                  {/* ONLY render session details & buttons if Admin added an activity */}
+                  {/* Render list of sessions scheduled for this date */}
                   {hasActivity && (
-                    <>
-                      <div class="school-name-preview" title={sessionTitle} style={{ color: item.slotStatus === 'SESSION_COMPLETED' ? '#475569' : item.slotStatus === 'SLOT_FULL' ? '#DC2626' : item.slotStatus === 'FILLING_FAST' ? '#D97706' : '#00897B', fontWeight: 700 }}>
-                        <span class="session-pill-tag" style={{
-                          background: item.slotStatus === 'SESSION_COMPLETED' ? '#F1F5F9' : item.slotStatus === 'SLOT_FULL' ? '#FEF2F2' : item.slotStatus === 'FILLING_FAST' ? '#FFFBEB' : '#E6F9F6',
-                          color: item.slotStatus === 'SESSION_COMPLETED' ? '#475569' : item.slotStatus === 'SLOT_FULL' ? '#DC2626' : item.slotStatus === 'FILLING_FAST' ? '#D97706' : '#00897B',
-                          border: item.slotStatus === 'SESSION_COMPLETED' ? '1px solid #CBD5E1' : item.slotStatus === 'SLOT_FULL' ? '1px solid #FECACA' : item.slotStatus === 'FILLING_FAST' ? '1px solid #FDE68A' : '1px solid #B2DFDB'
-                        }}>
-                          CPD
-                        </span>
-                        <span class="session-title-text">{sessionTitle}</span>
-                      </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {item.normSessions.map((sess, sIdx) => {
+                        const effStatus = getSessionEffectiveStatus(item.dateStr, sess);
+                        const isEnded = effStatus === 'SESSION_COMPLETED';
 
-                      {item.isPast ? (
-                        <div class="status-badge badge-past">Past</div>
-                      ) : item.slotStatus === 'SESSION_COMPLETED' ? (
-                        <div class="status-badge" style={{ background: '#334155', color: '#FFFFFF', border: '1px solid #1E293B' }}>Session Completed</div>
-                      ) : item.slotStatus === 'SLOT_FULL' ? (
-                        <div class="status-badge badge-full">Slot Is Full</div>
-                      ) : (
-                        <div class={`status-badge ${item.slotStatus === 'FILLING_FAST' ? 'badge-fast' : 'badge-available'}`}>
-                          {item.slotStatus === 'FILLING_FAST' ? 'Filling Fast' : 'Schedule'}
-                        </div>
-                      )}
+                        const rawTitle = sess.sessionName || 'CPD Session';
+                        const displayTitle = rawTitle.startsWith('http') ? 'CPD Session' : rawTitle;
 
-                      {/* Blue Meeting Link Button (only when session is active/upcoming) */}
-                      {item.config.tutorialLink && item.slotStatus !== 'SESSION_COMPLETED' && !item.isPast && (
-                        <a
-                          href={item.config.tutorialLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            marginTop: '0.35rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            gap: '0.25rem', background: '#2563EB', color: '#FFFFFF', borderRadius: '6px',
-                            padding: '0.28rem 0.55rem', fontSize: '0.74rem', fontWeight: 800, textDecoration: 'none',
-                            boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)', transition: 'all 0.15s ease'
-                          }}
-                        >
-                          🔗 Meeting Link
-                        </a>
-                      )}
-                    </>
+                        return (
+                          <div
+                            key={sess.id || sIdx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSessionClick(item, sess);
+                            }}
+                            style={{
+                              background: isEnded ? '#F8FAFC' : '#FFFFFF',
+                              border: isEnded ? '1px solid #CBD5E1' : '1px solid #E2E8F0',
+                              borderRadius: '8px',
+                              padding: '0.45rem 0.5rem',
+                              transition: 'all 0.15s ease',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                              minWidth: 0,
+                              maxWidth: '100%',
+                              width: '100%',
+                              overflow: 'hidden',
+                              wordBreak: 'break-word',
+                              boxSizing: 'border-box'
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.borderColor = isEnded ? '#94A3B8' : '#FFC4BC'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.borderColor = isEnded ? '#CBD5E1' : '#E2E8F0'; e.currentTarget.style.transform = 'none'; }}
+                          >
+                            <div className="school-name-preview" title={displayTitle} style={{ color: isEnded ? '#64748B' : effStatus === 'SLOT_FULL' ? '#DC2626' : effStatus === 'FILLING_FAST' ? '#D97706' : '#00897B', fontWeight: 700, margin: 0, minWidth: 0, maxWidth: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+                              <span className="session-pill-tag" style={{
+                                background: isEnded ? '#F1F5F9' : effStatus === 'SLOT_FULL' ? '#FEF2F2' : effStatus === 'FILLING_FAST' ? '#FFFBEB' : '#E6F9F6',
+                                color: isEnded ? '#64748B' : effStatus === 'SLOT_FULL' ? '#DC2626' : effStatus === 'FILLING_FAST' ? '#D97706' : '#00897B',
+                                border: isEnded ? '1px solid #CBD5E1' : effStatus === 'SLOT_FULL' ? '1px solid #FECACA' : effStatus === 'FILLING_FAST' ? '1px solid #FDE68A' : '1px solid #B2DFDB',
+                                flexShrink: 0
+                              }}>
+                                CPD
+                              </span>
+                              <span className="session-title-text" style={{ textDecoration: isEnded ? 'line-through' : 'none', minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', wordBreak: 'break-all' }}>{displayTitle}</span>
+                            </div>
+
+                            {/* PROMINENT TIME DISPLAY */}
+                            {sess.sessionTime && (
+                              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isEnded ? '#94A3B8' : '#334155', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.25rem', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+                                <span style={{ flexShrink: 0 }}>⏰</span>
+                                <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', wordBreak: 'break-all' }}>{sess.sessionTime.startsWith('http') ? sess.sessionTime.substring(0, 20) + '...' : sess.sessionTime}</span>
+                              </div>
+                            )}
+
+                            {item.isPast ? (
+                              <div className="status-badge badge-past" style={{ marginTop: '0.3rem' }}>Past</div>
+                            ) : isEnded ? (
+                              <div className="status-badge" style={{ background: '#475569', color: '#FFFFFF', border: '1px solid #334155', marginTop: '0.3rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SESSION ENDED</div>
+                            ) : effStatus === 'SLOT_FULL' ? (
+                              <div className="status-badge badge-full" style={{ marginTop: '0.3rem' }}>Slot Is Full</div>
+                            ) : (
+                              <div className={`status-badge ${effStatus === 'FILLING_FAST' ? 'badge-fast' : 'badge-available'}`} style={{ marginTop: '0.3rem' }}>
+                                {effStatus === 'FILLING_FAST' ? 'Filling Fast' : 'Schedule'}
+                              </div>
+                            )}
+
+                            {/* Meeting Link Button */}
+                            {sess.tutorialLink && !isEnded && !item.isPast && (
+                              <a
+                                href={sess.tutorialLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  marginTop: '0.3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  gap: '0.25rem', background: '#2563EB', color: '#FFFFFF', borderRadius: '5px',
+                                  padding: '0.22rem 0.5rem', fontSize: '0.7rem', fontWeight: 800, textDecoration: 'none',
+                                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)', width: '100%', maxWidth: '100%',
+                                  boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+                                }}
+                              >
+                                🔗 Meeting Link
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );
             })}
 
             {nextMonthDays.map(nextNum => (
-              <div key={`next-${nextNum}`} class="day-cell other-month">
-                <span class="day-number">{nextNum}</span>
+              <div key={`next-${nextNum}`} className="day-cell other-month">
+                <span className="day-number">{nextNum}</span>
               </div>
             ))}
           </div>
@@ -497,8 +533,9 @@ export default function SchedulerPage() {
             adminSessionConfigs[bookingModalDate] ||
             {}
           }
+          initialSessionId={selectedSessionId}
           stateCode={userSelectedState}
-          onClose={() => setBookingModalDate(null)}
+          onClose={() => { setBookingModalDate(null); setSelectedSessionId(null); }}
           onSubmitSuccess={handleBookingSubmit}
         />
       )}

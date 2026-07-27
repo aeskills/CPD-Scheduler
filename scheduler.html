@@ -387,7 +387,7 @@
 
     .calendar-weekdays {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       background: #F8FAFC;
       border-bottom: 1px solid var(--border-color);
       text-align: center;
@@ -404,7 +404,7 @@
 
     .calendar-days {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 1px;
       background: var(--border-color);
     }
@@ -420,6 +420,9 @@
       overflow: hidden;
       box-sizing: border-box;
       min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      word-break: break-word;
       transition: background 0.2s ease, border-color 0.2s ease;
     }
 
@@ -1287,6 +1290,90 @@
     let adminSessionConfigs = JSON.parse(localStorage.getItem('cpd_admin_session_configs') || '{}');
     let bookedSlots = JSON.parse(localStorage.getItem('cpd_admin_bookings') || '{}');
 
+    // Session Normalization & Auto-Expiration Utilities
+    function normalizeSessions(config) {
+      if (!config) return [];
+      if (Array.isArray(config.sessions) && config.sessions.length > 0) {
+        return config.sessions.map((s, idx) => ({
+          id: s.id || ('s_' + idx + '_' + Date.now()),
+          sessionName: s.sessionName || '',
+          sessionTime: s.sessionTime || '',
+          tutorialLink: s.tutorialLink || config.tutorialLink || '',
+          slotStatus: s.slotStatus || 'SCHEDULE',
+          teachersPresent: s.teachersPresent || ''
+        }));
+      }
+      if (config.sessionName) {
+        return [{
+          id: 's_default',
+          sessionName: config.sessionName,
+          sessionTime: config.sessionTime || '',
+          tutorialLink: config.tutorialLink || '',
+          slotStatus: config.slotStatus || 'SCHEDULE',
+          teachersPresent: config.teachersPresent || ''
+        }];
+      }
+      return [];
+    }
+
+    function parseTime12h(timeStr) {
+      if (!timeStr) return null;
+      const clean = timeStr.trim().toUpperCase();
+      const match = clean.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/);
+      if (!match) return null;
+
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2] ? parseInt(match[2], 10) : 0;
+      const ampm = match[3];
+
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+
+      return { hours, minutes };
+    }
+
+    function isSessionExpired(dateStr, sessionTime) {
+      if (!dateStr) return false;
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return false;
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+
+      const now = new Date();
+      const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dateZero = new Date(year, month, day);
+
+      if (dateZero < todayZero) return true;
+      if (dateZero > todayZero) return false;
+
+      if (!sessionTime || !sessionTime.trim()) return false;
+
+      let endTimeStr = sessionTime;
+      if (sessionTime.includes('-')) {
+        const rangeParts = sessionTime.split('-');
+        endTimeStr = rangeParts[rangeParts.length - 1];
+      } else if (sessionTime.toLowerCase().includes('to')) {
+        const rangeParts = sessionTime.toLowerCase().split('to');
+        endTimeStr = rangeParts[rangeParts.length - 1];
+      }
+
+      const parsedTime = parseTime12h(endTimeStr);
+      if (!parsedTime) return false;
+
+      const sessionEnd = new Date(year, month, day, parsedTime.hours, parsedTime.minutes, 0);
+      return now > sessionEnd;
+    }
+
+    function getSessionEffectiveStatus(dateStr, session) {
+      if (!session) return 'SCHEDULE';
+      if (session.slotStatus === 'SESSION_COMPLETED') return 'SESSION_COMPLETED';
+      if (isSessionExpired(dateStr, session.sessionTime)) {
+        return 'SESSION_COMPLETED';
+      }
+      return session.slotStatus || 'SCHEDULE';
+    }
+
     // DOM Elements
     const monthYearDisplay = document.getElementById('monthYearDisplay');
     const calendarDaysGrid = document.getElementById('calendarDaysGrid');
@@ -1377,7 +1464,16 @@
             if (currentHash !== lastUserDataHash) {
               lastUserDataHash = currentHash;
               if (result.sessionConfigs && Object.keys(result.sessionConfigs).length > 0) {
-                adminSessionConfigs = result.sessionConfigs;
+                Object.keys(result.sessionConfigs).forEach(k => {
+                  const fetched = result.sessionConfigs[k];
+                  const local = adminSessionConfigs[k];
+
+                  // Preserve multi-sessions array if present locally
+                  if (local && Array.isArray(local.sessions) && local.sessions.length > 0 && (!fetched.sessions || !Array.isArray(fetched.sessions))) {
+                    fetched.sessions = local.sessions;
+                  }
+                  adminSessionConfigs[k] = fetched;
+                });
                 localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
               }
               if (Array.isArray(result.bookings) && result.bookings.length > 0) {
@@ -1497,84 +1593,69 @@
               }
             }
           }
-        const hasActivity = Boolean(config.sessionName);
+        }
+
+        const normSessions = normalizeSessions(config);
+        const hasActivity = normSessions.length > 0;
 
         if (hasActivity) {
-          if (isPast) {
-            classes.push('day-past');
-            cellContent += `
-              <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #64748B; font-weight: 700; margin-top: 0.2rem;">
-                <span class="session-pill-tag" style="background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
-              </div>
-              <div class="status-badge badge-past">Past</div>
-            `;
-          } else if (slotStatus === 'SESSION_COMPLETED') {
-            classes.push('day-blocked');
-            cellContent += `
-              <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #475569; font-weight: 700; margin-top: 0.2rem;">
-                <span class="session-pill-tag" style="background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
-              </div>
-              <div class="status-badge" style="background: #334155; color: #FFFFFF; border: 1px solid #1E293B;">Session Completed</div>
-            `;
-          } else if (slotStatus === 'SLOT_FULL') {
-            classes.push('day-blocked');
-            cellContent += `
-              <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #DC2626; font-weight: 700; margin-top: 0.2rem;">
-                <span class="session-pill-tag" style="background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
-              </div>
-              <div class="status-badge badge-full">Slot Is Full</div>
-            `;
-          } else {
-            classes.push('day-available');
-            if (slotStatus === 'FILLING_FAST') {
-              cellContent += `
-                <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #D97706; font-weight: 700; margin-top: 0.2rem;">
-                  <span class="session-pill-tag" style="background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
-                </div>
-                <div class="status-badge badge-fast">Filling Fast</div>
-              `;
-            } else {
-              cellContent += `
-                <div class="school-name-preview" title="${escapeHtml(config.sessionName)}" style="color: #00897B; font-weight: 700; margin-top: 0.2rem;">
-                  <span class="session-pill-tag" style="background: #E6F9F6; color: #00897B; border: 1px solid #B2DFDB;">${escapeHtml(getShortSessionTag(config.sessionName))}</span><span class="session-title-text">${escapeHtml(config.sessionName)}</span>
-                </div>
-                <div class="status-badge badge-available">Schedule</div>
-              `;
-            }
-          }
+          cellContent += `<div style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.3rem;">`;
 
-          // Blue Meeting Link Button (only when session is active/upcoming)
-          if (config.tutorialLink && slotStatus !== 'SESSION_COMPLETED' && !isPast) {
+          normSessions.forEach(sess => {
+            const effStatus = getSessionEffectiveStatus(dateStr, sess);
+            const isEnded = effStatus === 'SESSION_COMPLETED';
+            const isBlocked = isEnded || isPast || effStatus === 'SLOT_FULL';
+
+            const rawTitle = sess.sessionName || 'CPD Session';
+            const displayTitle = rawTitle.startsWith('http') ? 'CPD Session' : rawTitle;
+
             cellContent += `
-              <a href="${escapeHtml(config.tutorialLink)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="margin-top: 0.35rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; background: #2563EB; color: #FFFFFF; border-radius: 6px; padding: 0.28rem 0.55rem; font-size: 0.74rem; font-weight: 800; text-decoration: none; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); transition: all 0.15s ease;">
-                🔗 Meeting Link
-              </a>
+              <div
+                onclick="event.stopPropagation(); ${!isBlocked ? `handleSchedulerSessionClick('${dateStr}', '${sess.id}')` : isEnded ? `showCustomAlert('CPD Session Completed', 'The CPD session \\x22${escapeHtml(displayTitle)}\\x22 ${sess.sessionTime ? '(' + escapeHtml(sess.sessionTime) + ')' : ''} has been completed. No further bookings are accepted.', '✅')` : effStatus === 'SLOT_FULL' ? `showCustomAlert('Slot Full', 'This session slot is full or blocked by the administrator.', '🔒')` : ''}"
+                style="background: ${isEnded ? '#F1F5F9' : '#FFFFFF'}; border: ${isEnded ? '1px solid #94A3B8' : '1px solid #E2E8F0'}; border-radius: 8px; padding: 0.4rem 0.5rem; transition: all 0.15s ease; cursor: ${isBlocked ? 'not-allowed' : 'pointer'}; opacity: ${isEnded ? '0.75' : '1'}; min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; overflow: hidden; word-break: break-word;"
+                ${!isBlocked ? `onmouseover="this.style.borderColor='#FFC4BC'; this.style.transform='translateY(-1px)';" onmouseout="this.style.borderColor='#E2E8F0'; this.style.transform='none';"` : ''}
+              >
+                <div class="school-name-preview" title="${escapeHtml(displayTitle)}" style="color: ${isEnded ? '#64748B' : effStatus === 'SLOT_FULL' ? '#DC2626' : effStatus === 'FILLING_FAST' ? '#D97706' : '#00897B'}; font-weight: 700; margin: 0; min-width: 0; max-width: 100%; overflow: hidden; display: flex; align-items: center;">
+                  <span class="session-pill-tag" style="background: ${isEnded ? '#E2E8F0' : effStatus === 'SLOT_FULL' ? '#FEF2F2' : effStatus === 'FILLING_FAST' ? '#FFFBEB' : '#E6F9F6'}; color: ${isEnded ? '#64748B' : effStatus === 'SLOT_FULL' ? '#DC2626' : effStatus === 'FILLING_FAST' ? '#D97706' : '#00897B'}; border: ${isEnded ? '1px solid #94A3B8' : effStatus === 'SLOT_FULL' ? '1px solid #FECACA' : effStatus === 'FILLING_FAST' ? '1px solid #FDE68A' : '1px solid #B2DFDB'}; flex-shrink: 0;">CPD</span>
+                  <span class="session-title-text" style="text-decoration: ${isEnded ? 'line-through' : 'none'}; min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: break-all;">${escapeHtml(displayTitle)}</span>
+                </div>
+
+                ${sess.sessionTime ? `
+                  <div style="font-size: 0.68rem; font-weight: 800; color: ${isEnded ? '#94A3B8' : '#334155'}; margin-top: 0.15rem; display: flex; align-items: center; gap: 0.2rem; min-width: 0; max-width: 100%; overflow: hidden;">
+                    <span style="flex-shrink: 0;">⏰</span>
+                    <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: break-all;">${escapeHtml(sess.sessionTime.startsWith('http') ? sess.sessionTime.substring(0, 20) + '...' : sess.sessionTime)}</span>
+                  </div>
+                ` : ''}
+
+                ${isPast ? `
+                  <div class="status-badge badge-past" style="margin-top: 0.25rem;">Past</div>
+                ` : isEnded ? `
+                  <div style="background: #334155; color: #FFFFFF; border: 1px solid #1E293B; padding: 0.2rem 0.4rem; border-radius: 5px; font-size: 0.65rem; font-weight: 800; margin-top: 0.25rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    ✅ SESSION ENDED
+                  </div>
+                ` : effStatus === 'SLOT_FULL' ? `
+                  <div class="status-badge badge-full" style="margin-top: 0.25rem;">Slot Is Full</div>
+                ` : `
+                  <div class="status-badge ${effStatus === 'FILLING_FAST' ? 'badge-fast' : 'badge-available'}" style="margin-top: 0.25rem;">
+                    ${effStatus === 'FILLING_FAST' ? 'Filling Fast' : 'Schedule'}
+                  </div>
+                `}
+
+                ${sess.tutorialLink && !isEnded && !isPast ? `
+                  <a href="${escapeHtml(sess.tutorialLink)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="margin-top: 0.25rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.2rem; background: #2563EB; color: #FFFFFF; border-radius: 5px; padding: 0.2rem 0.45rem; font-size: 0.68rem; font-weight: 800; text-decoration: none; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">🔗 Meeting Link</span>
+                  </a>
+                ` : ''}
+              </div>
             `;
-          }
+          });
+
+          cellContent += `</div>`;
         }
 
         dayCell.className = classes.join(' ');
         dayCell.style.cursor = hasActivity ? 'pointer' : 'default';
         dayCell.innerHTML = cellContent;
-
-        if (hasActivity) {
-          if (slotStatus === 'SESSION_COMPLETED' && !isPast) {
-            dayCell.onclick = function(e) {
-              if (e) e.stopPropagation();
-              showCustomAlert('Session Completed', 'This CPD session has ended and is marked as completed by the administrator.', '✅');
-            };
-          } else if (slotStatus === 'SLOT_FULL' && !isPast) {
-            dayCell.onclick = function(e) {
-              if (e) e.stopPropagation();
-              showCustomAlert('Slot Full / Blocked', 'This session slot is currently full or blocked by the administrator. Please select another available date.', '🔒');
-            };
-          } else if (!isPast) {
-            dayCell.onclick = function(e) {
-              if (e) e.stopPropagation();
-              openBookingModal(cellDate, dateStr);
-            };
-          }
-        }
 
         calendarDaysGrid.appendChild(dayCell);
       }
@@ -1599,21 +1680,48 @@
       return 'CPD';
     }
 
+    window.handleSchedulerSessionClick = function(dateStr, sessionId) {
+      const config = adminSessionConfigs[userSelectedState + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
+      const norm = normalizeSessions(config);
+      const sess = norm.find(s => s.id === sessionId) || norm[0];
+
+      if (!sess) return;
+      const effStatus = getSessionEffectiveStatus(dateStr, sess);
+
+      if (effStatus === 'SESSION_COMPLETED') {
+        showCustomAlert('Session Ended / Completed', `The CPD session "${sess.sessionName}" ${sess.sessionTime ? `(${sess.sessionTime})` : ''} has ended and is no longer accepting new bookings.`, '🏁');
+        return;
+      }
+      if (effStatus === 'SLOT_FULL') {
+        showCustomAlert('Slot Full / Blocked', `The session slot "${sess.sessionName}" is currently full or blocked by the administrator. Please select another session slot.`, '🔒');
+        return;
+      }
+
+      const dateParts = dateStr.split('-');
+      const dateObj = new Date(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10));
+      openBookingModal(dateObj, dateStr, sessionId);
+    };
+
     /**
      * Modal Logic (Teacher fills details for Admin-Configured Session)
      */
-    function openBookingModal(dateObj, dateStr) {
+    function openBookingModal(dateObj, dateStr, targetSessionId = null) {
       try {
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         const d = (dateObj instanceof Date && !isNaN(dateObj)) ? dateObj : new Date(dateStr);
         const formattedDate = d.toLocaleDateString('en-US', options);
         const config = adminSessionConfigs[userSelectedState + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
-        const activeSessionName = config.sessionName || 'CPD Session';
-        const slotStatus = config.slotStatus || 'SCHEDULE';
+        const normSessions = normalizeSessions(config);
+
+        let activeSession = normSessions.find(s => s.id === targetSessionId) || normSessions[0] || {
+          sessionName: 'CPD Session',
+          sessionTime: '',
+          slotStatus: 'SCHEDULE'
+        };
 
         const modalBody = document.getElementById('bookingModalBody');
         if (modalBody) {
-          modalBody.innerHTML = buildModalHTML(formattedDate, dateStr, activeSessionName, slotStatus);
+          modalBody.innerHTML = buildModalHTML(formattedDate, dateStr, activeSession, normSessions);
         }
 
         reattachFormListener();
@@ -1623,19 +1731,74 @@
       }
     }
 
-    function buildModalHTML(formattedDate, dateStr, activeSessionName, slotStatus) {
+    function switchBookingSessionSlot(dateStr, targetSessionId, formattedDate) {
+      const config = adminSessionConfigs[userSelectedState + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
+      const normSessions = normalizeSessions(config);
+      let activeSession = normSessions.find(s => s.id === targetSessionId) || normSessions[0];
+
+      const modalBody = document.getElementById('bookingModalBody');
+      if (modalBody) {
+        modalBody.innerHTML = buildModalHTML(formattedDate, dateStr, activeSession, normSessions);
+      }
+      reattachFormListener();
+    }
+
+    function buildModalHTML(formattedDate, dateStr, activeSession, normSessions) {
+      const effStatus = getSessionEffectiveStatus(dateStr, activeSession);
       let statusTagHTML = '';
-      if (slotStatus === 'FILLING_FAST') {
+      if (effStatus === 'FILLING_FAST') {
         statusTagHTML = `<span style="background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; padding: 0.3rem 0.75rem; border-radius: 50px; font-weight: 800; font-size: 0.78rem;">🟠 Slot Filling Fast</span>`;
       } else {
         statusTagHTML = `<span style="background: #E6F9F6; color: #00897B; border: 1px solid #B2DFDB; padding: 0.3rem 0.75rem; border-radius: 50px; font-weight: 800; font-size: 0.78rem;">🟢 Schedule Available</span>`;
       }
 
+      let sessionSelectorHTML = '';
+      if (normSessions.length > 1) {
+        const pillsHTML = normSessions.map(s => {
+          const isSel = (s.id === activeSession.id);
+          const sEff = getSessionEffectiveStatus(dateStr, s);
+          const isEnded = sEff === 'SESSION_COMPLETED';
+
+          return `
+            <button
+              type="button"
+              ${isEnded ? 'disabled' : ''}
+              onclick="${!isEnded ? `switchBookingSessionSlot('${dateStr}', '${s.id}', '${formattedDate}')` : ''}"
+              style="text-align: left; padding: 0.65rem 0.85rem; border-radius: 10px; border: ${isSel ? '2px solid #E52E06' : '1px solid #CBD5E1'}; background: ${isSel ? '#FFF1F0' : isEnded ? '#F1F5F9' : '#F8FAFC'}; color: ${isSel ? '#E52E06' : isEnded ? '#94A3B8' : '#0F172A'}; cursor: ${isEnded ? 'not-allowed' : 'pointer'}; opacity: ${isEnded ? 0.7 : 1}; transition: all 0.15s ease;"
+            >
+              <div style="font-weight: 800; font-size: 0.84rem;">
+                ${escapeHtml(s.sessionName)} ${isEnded ? '<span style="font-size: 0.72rem; color: #64748B;">(Ended)</span>' : ''}
+              </div>
+              ${s.sessionTime ? `
+                <div style="font-size: 0.74rem; color: ${isSel ? '#CC2500' : '#64748B'}; font-weight: 700; margin-top: 0.15rem; display: flex; align-items: center; gap: 0.25rem;">
+                  ⏰ ${escapeHtml(s.sessionTime)}
+                </div>
+              ` : ''}
+            </button>
+          `;
+        }).join('');
+
+        sessionSelectorHTML = `
+          <div style="margin-bottom: 1.15rem;">
+            <div style="font-size: 0.75rem; font-weight: 800; color: #E52E06; text-transform: uppercase; margin-bottom: 0.4rem; letter-spacing: 0.05em;">
+              Select Session Slot for ${formattedDate}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.6rem;">
+              ${pillsHTML}
+            </div>
+          </div>
+        `;
+      }
+
       return `
+        ${sessionSelectorHTML}
         <div class="session-date-banner" style="background: #FFF1F0; border: 1px solid #FFC4BC; padding: 1.15rem 1.25rem; border-radius: 12px; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
           <div>
-            <div class="date-label" style="font-size: 0.78rem; color: #64748B; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;">Session Name & Date</div>
-            <div class="date-val" style="font-size: 1.2rem; font-weight: 800; color: #E52E06; margin-top: 0.2rem;">${escapeHtml(activeSessionName)}</div>
+            <div class="date-label" style="font-size: 0.78rem; color: #64748B; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;">Selected Session Slot & Date</div>
+            <div class="date-val" style="font-size: 1.2rem; font-weight: 800; color: #E52E06; margin-top: 0.2rem;">${escapeHtml(activeSession.sessionName)}</div>
+            ${activeSession.sessionTime ? `
+              <div style="font-size: 0.88rem; font-weight: 800; color: #1E293B; margin-top: 0.2rem;">⏰ ${escapeHtml(activeSession.sessionTime)}</div>
+            ` : ''}
             <div style="font-size: 0.92rem; color: #0F172A; margin-top: 0.25rem; font-weight: 700;">📅 ${formattedDate}</div>
           </div>
           <div>
@@ -1649,7 +1812,8 @@
 
         <form id="bookingForm" novalidate>
           <input type="hidden" id="inputSessionDate" name="sessionDate" value="${dateStr}">
-          <input type="hidden" id="inputSessionName" name="sessionName" value="${escapeHtml(activeSessionName)}">
+          <input type="hidden" id="inputSessionName" name="sessionName" value="${escapeHtml(activeSession.sessionName)}">
+          <input type="hidden" id="inputSessionTime" name="sessionTime" value="${escapeHtml(activeSession.sessionTime || '')}">
           <input type="hidden" id="inputRegistrantType" name="registrantType" value="Teacher">
           <input type="hidden" id="inputTotalTeachers" name="totalTeachers" value="1">
 

@@ -2,17 +2,20 @@
  * CPD Scheduler & Admin Portal Backend (Code.gs)
  * AE Skills Portal (aeskills.github.io/CPD)
  *
- * Professional Multi-State Architecture:
+ * Professional Multi-State Architecture (v3 — Multi-Session per Date):
+ *
  * 1. Admin Sessions Sheet ("Admin Sessions"):
- *    Row 1: Merged State Headers (A-E: Chain/Retail, F-J: UP, K-O: Goa, P-T: Delhi, U-Y: Rajasthan, Z-AD: Gujarat)
- *    Row 2: Sub-headers (Timestamp | Session Date | Session Name | Tutorial Link | Slot Status)
+ *    Row 1: Merged State Headers (7 columns each)
+ *    Row 2: Sub-headers per state:
+ *       Timestamp | Session Date | Session Name | Session Time | Tutorial Link | Slot Status | Total Teacher Present in Session
+ *    Row 3+: One row PER session. Same date can have multiple rows (= multiple sessions on that day).
  *
  * 2. Per-State Booking Tabs:
  *    - "CPD Bookings (Chain/Retail)"
  *    - "CPD Bookings (UP)"
  *    - "CPD Bookings (GA)"
  *    - "CPD Bookings (DL)"
- *    - "CPD Bookings (RJ)"
+ *    - "CPD Bookings (Uttarakhand)"
  *    - "CPD Bookings (GJ)"
  *    Columns: A: Timestamp | B: Session Date | C: Session Name | D: SPOC Name | E: SPOC Phone | F: SPOC Email | G: School Name | H: Total Teachers | I: Reminder Sent | J: Teams Link
  */
@@ -20,6 +23,8 @@
 const SHEET_BOOKINGS_NAME = 'CPD Bookings';
 const SHEET_ADMIN_TAB_NAME = 'Admin Sessions';
 const DEFAULT_TEAMS_MEETING_LINK = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_CPDSession_AEskills%40thread.v2/0';
+
+const COLS_PER_STATE = 7;
 
 const STATE_TAB_MAP = {
   'CR': 'CPD Bookings (Chain/Retail)',
@@ -30,14 +35,17 @@ const STATE_TAB_MAP = {
   'GJ': 'CPD Bookings (GJ)'
 };
 
+// 7 columns per state (1-indexed column offsets)
 const STATE_COL_OFFSETS = {
-  'CR': 1,
-  'UP': 7,
-  'GA': 13,
-  'DL': 19,
-  'UT': 25,
-  'GJ': 31
+  'CR': 1,   // A-G   (cols 1–7)
+  'UP': 8,   // H-N   (cols 8–14)
+  'GA': 15,  // O-U   (cols 15–21)
+  'DL': 22,  // V-AB  (cols 22–28)
+  'UT': 29,  // AC-AI (cols 29–35)
+  'GJ': 36   // AJ-AP (cols 36–42)
 };
+
+const TOTAL_ADMIN_COLS = 42; // 6 states × 7 columns
 
 /**
  * Handle incoming GET requests
@@ -46,7 +54,6 @@ function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) ? safeString(e.parameter.action) : 'getBookings';
 
-    autoMigrateSheetSchema();
     setupAdminSessionsLayout();
 
     const sessionConfigs = fetchAdminSessionsMap();
@@ -111,7 +118,6 @@ function doPost(e) {
     const action = safeString(payload.action) || 'createBooking';
     const state = safeString(payload.state || 'CR').toUpperCase();
 
-    autoMigrateSheetSchema();
     setupAdminSessionsLayout();
 
     // CLEAR ALL DATA & START FRESH
@@ -136,23 +142,45 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 1. Admin Saving Session Title, Tutorial Link & Slot Status into "Admin Sessions" Tab
+    // ─────────────────────────────────────────────────────────────
+    // 1. Admin Saving Session Config (supports multi-session per date)
+    //    Frontend sends: { sessions: "[{...},{...}]" } OR legacy single fields
+    // ─────────────────────────────────────────────────────────────
     if (action === 'saveSessionConfig') {
       const dateStr = safeString(payload.sessionDate);
-      const sessionName = safeString(payload.sessionName);
-      const tutorialLink = safeString(payload.tutorialLink);
-      const slotStatus = safeString(payload.slotStatus) || 'SCHEDULE';
-      const teachersPresent = safeString(payload.teachersPresent);
-
-      if (!dateStr || !sessionName) {
-        throw new Error('Missing session date or session name');
+      if (!dateStr) {
+        throw new Error('Missing session date');
       }
 
-      saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus, teachersPresent, state);
+      let sessionsToSave = [];
+
+      // Try parsing sessions JSON array from frontend
+      const sessionsStr = safeString(payload.sessions);
+      if (sessionsStr) {
+        try {
+          const parsed = JSON.parse(sessionsStr);
+          if (Array.isArray(parsed)) {
+            sessionsToSave = parsed;
+          }
+        } catch (e) {}
+      }
+
+      // Fallback: single session from legacy fields
+      if (sessionsToSave.length === 0) {
+        sessionsToSave.push({
+          sessionName: safeString(payload.sessionName) || 'CPD Session',
+          sessionTime: safeString(payload.sessionTime) || '',
+          tutorialLink: safeString(payload.tutorialLink) || '',
+          slotStatus: safeString(payload.slotStatus) || 'SCHEDULE',
+          teachersPresent: safeString(payload.teachersPresent) || ''
+        });
+      }
+
+      saveAdminSessionsToSheet(dateStr, sessionsToSave, state);
 
       return ContentService.createTextOutput(JSON.stringify({
         status: 'success',
-        message: 'Admin session configuration saved for ' + state + ' on ' + dateStr
+        message: 'Admin session configuration saved for ' + state + ' on ' + dateStr + ' (' + sessionsToSave.length + ' session(s))'
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -193,7 +221,7 @@ function doPost(e) {
 
     // 4. Create New Booking (SPOC or Teacher)
     const sessionDate    = safeString(payload.sessionDate);
-    const registrantType = safeString(payload.registrantType || 'SPOC'); // 'SPOC' or 'Teacher'
+    const registrantType = safeString(payload.registrantType || 'SPOC');
     const spocName       = safeString(payload.spocName || payload.name);
     const spocPhone      = safeString(payload.spocPhone || payload.phone);
     const spocEmail      = safeString(payload.spocEmail || payload.email);
@@ -340,8 +368,14 @@ function sendConfirmationEmail(details) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ADMIN SESSIONS SHEET — 7 Columns per State, Multi-Row per Date
+// ═══════════════════════════════════════════════════════════════
+
 /**
- * Sheet Helper 1: "Admin Sessions" Tab (Strict State Isolation & Timezone Precision)
+ * Fetch all admin session configs, grouped by state_date.
+ * Multiple rows with the same date for the same state = multiple sessions.
+ * Returns: { "GJ_2026-07-31": { sessions: [{...}, {...}], sessionName: "...", ... } }
  */
 function fetchAdminSessionsMap() {
   const sheet = setupAdminSessionsLayout();
@@ -354,26 +388,47 @@ function fetchAdminSessionsMap() {
     const row = data[r];
     for (let sIdx = 0; sIdx < stateKeys.length; sIdx++) {
       const st = stateKeys[sIdx];
-      const colOffset = STATE_COL_OFFSETS[st] - 1;
+      const colOffset = STATE_COL_OFFSETS[st] - 1; // 0-indexed
 
+      // 7 columns: [0]=Timestamp [1]=Date [2]=SessionName [3]=SessionTime [4]=TutorialLink [5]=SlotStatus [6]=TeachersPresent
       let rDate = row[colOffset + 1];
-      const sessionName = safeString(row[colOffset + 2]);
-      const tutorialLink = safeString(row[colOffset + 3]);
-      const slotStatus = safeString(row[colOffset + 4]) || 'SCHEDULE';
-      const teachersPresent = safeString(row[colOffset + 5]);
+      const sessionName   = safeString(row[colOffset + 2]);
+      const sessionTime   = safeString(row[colOffset + 3]);
+      const tutorialLink  = safeString(row[colOffset + 4]);
+      const slotStatus    = safeString(row[colOffset + 5]) || 'SCHEDULE';
+      const teachersPresent = safeString(row[colOffset + 6]);
 
       if (rDate) {
         rDate = formatDateISO(rDate);
 
         if (rDate && rDate.length >= 10 && sessionName) {
           const cleanDate = rDate.substring(0, 10);
-          map[st + '_' + cleanDate] = {
+          const key = st + '_' + cleanDate;
+
+          const sessionObj = {
+            id: 's_' + r + '_' + sIdx,
             sessionName: sessionName,
+            sessionTime: sessionTime,
             tutorialLink: tutorialLink,
             slotStatus: slotStatus,
-            teachersPresent: teachersPresent,
-            state: st
+            teachersPresent: teachersPresent
           };
+
+          if (!map[key]) {
+            // First session for this state+date
+            map[key] = {
+              sessions: [sessionObj],
+              sessionName: sessionName,
+              sessionTime: sessionTime,
+              tutorialLink: tutorialLink,
+              slotStatus: slotStatus,
+              teachersPresent: teachersPresent,
+              state: st
+            };
+          } else {
+            // Additional session on the same date — append to sessions array
+            map[key].sessions.push(sessionObj);
+          }
         }
       }
     }
@@ -382,55 +437,82 @@ function fetchAdminSessionsMap() {
   return map;
 }
 
-function saveAdminSessionToSheet(dateStr, sessionName, tutorialLink, slotStatus, teachersPresent, state) {
+/**
+ * Save multiple sessions for a given date+state.
+ * Strategy:
+ *   1. Delete all existing rows for this state+date
+ *   2. Append one new row per session
+ */
+function saveAdminSessionsToSheet(dateStr, sessionsArray, state) {
   const sheet = setupAdminSessionsLayout();
   const st = (state || 'CR').toUpperCase();
   const colOffset = STATE_COL_OFFSETS[st] || 1;
-
-  const data = sheet.getDataRange().getValues();
-  const statusVal = slotStatus || 'SCHEDULE';
   const timestamp = new Date();
 
-  let targetRow = -1;
+  // Step 1: Find and clear all existing rows for this state+date (scan bottom-up to avoid index shifts)
+  const data = sheet.getDataRange().getValues();
+  const rowsToDelete = [];
 
-  // 1. Search if dateStr already exists for target state
   for (let r = 2; r < data.length; r++) {
-    let rDate = data[r][colOffset]; // date column for state (0-indexed)
+    let rDate = data[r][colOffset]; // 0-indexed: colOffset is 1-indexed, data is 0-indexed → col index = colOffset (date col = offset+1 in 1-indexed = colOffset in 0-indexed)
     if (rDate) {
       rDate = formatDateISO(rDate);
       if (rDate && rDate.substring(0, 10) === dateStr) {
-        targetRow = r + 1; // 1-indexed row
-        break;
+        // Clear this state's columns in this row (don't delete the row — other states may use it)
+        for (let c = 0; c < COLS_PER_STATE; c++) {
+          sheet.getRange(r + 1, colOffset + c).setValue('');
+        }
+        rowsToDelete.push(r + 1); // track for potential reuse
       }
     }
   }
 
-  // 2. If date not found, find the first available row (starting at Row 3) where this state's date cell is empty!
-  if (targetRow === -1) {
-    for (let r = 2; r < data.length; r++) {
-      let rDate = data[r][colOffset];
-      if (!rDate || safeString(rDate) === '') {
-        targetRow = r + 1;
-        break;
+  // Step 2: Write each session into its own row
+  for (let i = 0; i < sessionsArray.length; i++) {
+    const sess = sessionsArray[i];
+    const sName   = safeString(sess.sessionName) || 'CPD Session';
+    const sTime   = safeString(sess.sessionTime) || '';
+    const sLink   = safeString(sess.tutorialLink) || '';
+    const sStatus = safeString(sess.slotStatus) || 'SCHEDULE';
+    const sTeach  = safeString(sess.teachersPresent) || '';
+
+    let targetRow = -1;
+
+    // Reuse a previously cleared row if available
+    if (i < rowsToDelete.length) {
+      targetRow = rowsToDelete[i];
+    } else {
+      // Find next empty row for this state
+      const freshData = sheet.getDataRange().getValues();
+      for (let r = 2; r < freshData.length; r++) {
+        let rDate = freshData[r][colOffset];
+        if (!rDate || safeString(rDate) === '') {
+          targetRow = r + 1;
+          break;
+        }
+      }
+      // No empty row found, append at end
+      if (targetRow === -1) {
+        targetRow = Math.max(sheet.getLastRow() + 1, 3);
       }
     }
+
+    // Write 7 columns: Timestamp | Date | Name | Time | Link | Status | Teachers
+    sheet.getRange(targetRow, colOffset).setValue(timestamp);
+    sheet.getRange(targetRow, colOffset + 1).setValue(dateStr);
+    sheet.getRange(targetRow, colOffset + 2).setValue(sName);
+    sheet.getRange(targetRow, colOffset + 3).setValue(sTime);
+    sheet.getRange(targetRow, colOffset + 4).setValue(sLink);
+    sheet.getRange(targetRow, colOffset + 5).setValue(sStatus);
+    sheet.getRange(targetRow, colOffset + 6).setValue(sTeach);
   }
 
-  // 3. If no empty row exists in existing range, target the next new row directly
-  if (targetRow === -1) {
-    targetRow = data.length < 2 ? 3 : data.length + 1;
-  }
-
-  // Set values directly into targetRow at colOffset (6 columns: Timestamp, Date, Name, Link, Status, Total Teacher Present in Session)
-  sheet.getRange(targetRow, colOffset).setValue(timestamp);
-  sheet.getRange(targetRow, colOffset + 1).setValue(dateStr);
-  sheet.getRange(targetRow, colOffset + 2).setValue(sessionName);
-  sheet.getRange(targetRow, colOffset + 3).setValue(tutorialLink);
-  sheet.getRange(targetRow, colOffset + 4).setValue(statusVal);
-  sheet.getRange(targetRow, colOffset + 5).setValue(safeString(teachersPresent));
-
-  formatSheetColumns(sheet, 36);
+  formatSheetColumns(sheet, TOTAL_ADMIN_COLS);
 }
+
+// ═══════════════════════════════════════════════════════════════
+// BOOKINGS — Per-State Booking Sheets
+// ═══════════════════════════════════════════════════════════════
 
 function updateBookingInSheet(dateStr, index, bData, state) {
   const sheet = getOrCreateBookingsSheet(state);
@@ -489,7 +571,7 @@ function deleteBookingFromSheet(dateStr, index, state) {
 }
 
 /**
- * Sheet Helper 2: Per-State Bookings Map Parser (Strict State Isolation & Timezone Precision)
+ * Per-State Bookings Map Parser
  */
 function fetchBookingsMap(includeAdminDetails) {
   const states = ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'];
@@ -542,6 +624,10 @@ function fetchBookingsMap(includeAdminDetails) {
   return map;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SHEET SETUP & MIGRATION
+// ═══════════════════════════════════════════════════════════════
+
 /**
  * Get or Create Per-State Bookings Sheet (Standard 10-column layout)
  */
@@ -575,7 +661,7 @@ function getOrCreateBookingsSheet(state) {
 }
 
 /**
- * Get or Create Merged Admin Sessions Sheet (6-State Layout including Chain/Retail)
+ * Get or Create Admin Sessions Sheet with 7-column-per-state layout (42 columns total)
  */
 function setupAdminSessionsLayout() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -584,14 +670,15 @@ function setupAdminSessionsLayout() {
     sheet = ss.insertSheet(SHEET_ADMIN_TAB_NAME);
   }
 
-  // Ensure sheet dimension has at least 36 columns (cols A to AJ)
+  // Ensure sheet has at least 42 columns
   const maxCols = sheet.getMaxColumns();
-  if (maxCols < 36) {
-    sheet.insertColumnsAfter(maxCols, 36 - maxCols);
+  if (maxCols < TOTAL_ADMIN_COLS) {
+    sheet.insertColumnsAfter(maxCols, TOTAL_ADMIN_COLS - maxCols);
   }
 
-  const col6Val = safeString(sheet.getRange(2, 6).getValue());
-  const needsHeaderUpdate = (sheet.getLastRow() < 2) || (col6Val !== 'Total Teacher Present in Session');
+  // Check if headers need upgrade by looking for "Session Time" in the expected position
+  const col4Val = safeString(sheet.getRange(2, 4).getValue());
+  const needsHeaderUpdate = (sheet.getLastRow() < 2) || (col4Val !== 'Session Time');
 
   if (needsHeaderUpdate) {
     runHeaderUpgrade();
@@ -601,7 +688,11 @@ function setupAdminSessionsLayout() {
 }
 
 /**
- * Standalone Helper: Run this function directly in Apps Script Editor to upgrade headers to 36 columns
+ * Upgrade headers to 7-column-per-state layout (42 columns total)
+ * Run this directly in Apps Script Editor if you need to manually upgrade.
+ *
+ * Layout per state (7 cols):
+ *   Timestamp | Session Date | Session Name | Session Time | Tutorial Link | Slot Status | Total Teacher Present in Session
  */
 function runHeaderUpgrade() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -610,27 +701,27 @@ function runHeaderUpgrade() {
     sheet = ss.insertSheet(SHEET_ADMIN_TAB_NAME);
   }
 
-  // Ensure sheet dimension has at least 36 columns (cols A to AJ)
+  // Ensure 42 columns
   const maxCols = sheet.getMaxColumns();
-  if (maxCols < 36) {
-    sheet.insertColumnsAfter(maxCols, 36 - maxCols);
+  if (maxCols < TOTAL_ADMIN_COLS) {
+    sheet.insertColumnsAfter(maxCols, TOTAL_ADMIN_COLS - maxCols);
   }
 
-  // Unmerge previous 5-column merged headers in Row 1
+  // Unmerge previous headers in Row 1
   try {
-    sheet.getRange(1, 1, 1, Math.max(maxCols, 36)).breakApart();
+    sheet.getRange(1, 1, 1, Math.max(maxCols, TOTAL_ADMIN_COLS)).breakApart();
   } catch (e) {}
 
   const stateDisplayNames = ['Chain/Retail', 'UP', 'Goa', 'Delhi', 'Uttarakhand', 'Gujarat'];
   const subHeaders = [];
   for (let i = 0; i < 6; i++) {
-    subHeaders.push('Timestamp', 'Session Date', 'Session Name', 'Tutorial Link', 'Slot Status', 'Total Teacher Present in Session');
+    subHeaders.push('Timestamp', 'Session Date', 'Session Name', 'Session Time', 'Tutorial Link', 'Slot Status', 'Total Teacher Present in Session');
   }
 
-  // Merge 6 columns per state in Row 1
+  // Merge 7 columns per state in Row 1
   for (let i = 0; i < 6; i++) {
-    const startCol = i * 6 + 1;
-    const range = sheet.getRange(1, startCol, 1, 6);
+    const startCol = i * COLS_PER_STATE + 1;
+    const range = sheet.getRange(1, startCol, 1, COLS_PER_STATE);
     try { range.merge(); } catch (e) {}
     range.setValue(stateDisplayNames[i]);
     range.setBackground('#DC2626');
@@ -641,7 +732,7 @@ function runHeaderUpgrade() {
   }
 
   // Write Row 2 Subheaders
-  const row2Range = sheet.getRange(2, 1, 1, 36);
+  const row2Range = sheet.getRange(2, 1, 1, TOTAL_ADMIN_COLS);
   row2Range.setValues([subHeaders]);
   row2Range.setBackground('#0F172A');
   row2Range.setFontColor('#00D2C4');
@@ -649,7 +740,7 @@ function runHeaderUpgrade() {
   row2Range.setFontSize(9);
   row2Range.setHorizontalAlignment('center');
 
-  formatSheetColumns(sheet, 36);
+  formatSheetColumns(sheet, TOTAL_ADMIN_COLS);
 }
 
 function formatSheetColumns(sheet, totalCols) {
@@ -661,6 +752,10 @@ function formatSheetColumns(sheet, totalCols) {
     Logger.log('Formatting note: ' + e.toString());
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
 
 /**
  * Strict Timezone-Aware ISO Date Formatter
@@ -707,13 +802,13 @@ function safeString(val) {
 }
 
 /**
- * Automated Migration Helper: Automatically converts 11-column sheets to 10-column schema (deletes Column B 'Type')
- * and renames legacy "CPD Bookings (RJ)" or "CPD Bookings (UT)" to "CPD Bookings (Uttarakhand)"
+ * Automated Migration Helper: Converts 11-column sheets to 10-column schema
+ * and renames legacy tabs.
  */
 function autoMigrateSheetSchema() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. Automatically rename old RJ tab or UT tab to "CPD Bookings (Uttarakhand)" if present
+  // 1. Rename old RJ/UT tab to "CPD Bookings (Uttarakhand)"
   try {
     const oldRjSheet = ss.getSheetByName('CPD Bookings (RJ)');
     const targetUtSheet = ss.getSheetByName('CPD Bookings (Uttarakhand)');
@@ -746,7 +841,7 @@ function autoMigrateSheetSchema() {
       if (sheet && sheet.getLastColumn() >= 2) {
         const col2Header = safeString(sheet.getRange(1, 2).getValue());
         if (col2Header === 'Type') {
-          sheet.deleteColumn(2); // Automatically delete Column B ('Type')
+          sheet.deleteColumn(2);
           sheet.getRange(1, 1, 1, 10).setValues(subHeaders);
           sheet.getRange(1, 1, 1, 10).setBackground('#0F172A').setFontColor('#00D2C4').setFontWeight('bold');
           formatSheetColumns(sheet, 10);
@@ -759,10 +854,10 @@ function autoMigrateSheetSchema() {
 }
 
 /**
- * Standalone Menu Function: Run this directly in Apps Script Editor to clean all sheets automatically!
+ * Standalone Menu Function: Run directly in Apps Script Editor to upgrade everything.
  */
 function runAutoMigration() {
   autoMigrateSheetSchema();
   setupAdminSessionsLayout();
-  Logger.log('Migration completed successfully: Type column deleted and Uttarakhand tab configured.');
+  Logger.log('Migration completed successfully. Admin Sessions upgraded to 7-column layout with Session Time column.');
 }

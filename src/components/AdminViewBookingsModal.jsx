@@ -117,6 +117,11 @@ export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, 
                     <div style={{ fontSize: '0.82rem', color: '#64748B', marginTop: '0.25rem' }}>
                       👤 {b.registrantType === 'Teacher' ? 'Teacher' : 'SPOC'}: <strong>{b.spocName}</strong> | 📞 {b.spocPhone} | ✉️ {b.spocEmail}
                     </div>
+                    {b.sessionName && (
+                      <div style={{ fontSize: '0.78rem', color: '#E52E06', fontWeight: 800, marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        🏷️ Session: {b.sessionName} {b.sessionTime ? `(⏰ ${b.sessionTime})` : ''}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
                     <button

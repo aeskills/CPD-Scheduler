@@ -880,33 +880,26 @@
             <input type="hidden" id="selectConfigState" value="UP">
           </div>
 
-          <div class="form-group">
-            <label for="inputConfigSessionName">Session Name / Title</label>
-            <input type="text" id="inputConfigSessionName" class="input-control" placeholder="e.g. Series 1 - Session 2 (Digital Literacy)" required>
+          <!-- Dynamic Sessions Container for Multiple Sessions -->
+          <div id="adminSessionsListContainer" style="display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 1.25rem;">
+            <!-- Rendered dynamically by JS -->
           </div>
 
-          <div class="form-group">
-            <label for="inputConfigTutorialLink">Tutorial / Teams Meeting Link</label>
-            <input type="url" id="inputConfigTutorialLink" class="input-control" placeholder="https://teams.microsoft.com/l/meetup-join/..." required>
-          </div>
-
-          <div class="form-group" style="margin-top: 1.25rem;">
-            <label for="selectConfigSlotStatus" style="font-weight: 700; color: var(--cpd-red); display: block; margin-bottom: 0.4rem;">Slot Status & Availability</label>
-            <select id="selectConfigSlotStatus" class="input-control" style="background: #FAFAFC; color: #0F172A; font-weight: 700; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; width: 100%; font-size: 0.92rem; cursor: pointer;">
-              <option value="SCHEDULE" style="background: #FFFFFF; color: #00897B; font-weight: 700;">🟢 SCHEDULE — Open for Booking</option>
-              <option value="FILLING_FAST" style="background: #FFFFFF; color: #D97706; font-weight: 700;">🟠 FILLING FAST — Slot will be full shortly</option>
-              <option value="SLOT_FULL" style="background: #FFFFFF; color: #DC2626; font-weight: 700;">🔴 SLOT IS FULL / BLOCKED — Blocked (No new bookings allowed)</option>
-              <option value="SESSION_COMPLETED" style="background: #FFFFFF; color: #475569; font-weight: 700;">⚫ SESSION IS COMPLETED — Session ended & day blocked</option>
-            </select>
-          </div>
+          <!-- Add Another Session Button -->
+          <button
+            type="button"
+            id="btnAddSessionSlotBtn"
+            style="width: 100%; background: #FFF1F0; border: 2px dashed #FFC4BC; color: #E52E06; padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.9rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s ease; margin-bottom: 1.5rem;"
+            onmouseover="this.style.background='#FFE5E2'"
+            onmouseout="this.style.background='#FFF1F0'"
+          >
+            <span style="font-size: 1.2rem; line-height: 1;">+</span> Add Another Session Slot to Date
+          </button>
 
           <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
-            <button type="submit" class="btn-submit" id="btnSaveConfig" style="flex: 2;">
+            <button type="submit" class="btn-submit" id="btnSaveConfig" style="flex: 1;">
               <span id="btnSaveConfigText">Save Session Configuration</span>
               <div class="spinner" id="btnSaveConfigSpinner" style="display: none;"></div>
-            </button>
-            <button type="button" id="btnEndSession" style="flex: 1; background: #334155; color: #FFFFFF; border: none; border-radius: 10px; font-weight: 800; font-size: 0.88rem; cursor: pointer;">
-              🏁 End Session
             </button>
           </div>
         </form>
@@ -926,7 +919,7 @@
 
       <div class="modal-body" style="padding-top: 1.25rem;">
         <div style="font-size: 0.86rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
-          Ending CPD Session for <strong id="endSessionStateLabel" style="color: var(--cpd-red);">Chain/Retail</strong> on <strong id="endSessionDateLabel" style="color: var(--text-main);">Date</strong>.
+          Ending <strong id="endSessionNameLabel" style="color: var(--cpd-red);">CPD Session</strong> for <strong id="endSessionStateLabel" style="color: var(--cpd-red);">Chain/Retail</strong> on <strong id="endSessionDateLabel" style="color: var(--text-main);">Date</strong>.
         </div>
 
         <form id="endSessionConfirmForm">
@@ -1103,6 +1096,91 @@
     let adminBookings = JSON.parse(localStorage.getItem('cpd_admin_bookings') || '{}');
 
     let currentAdminState = 'CR';
+    let activeEditingSessions = [];
+
+    // Session Normalization & Auto-Expiration Utilities
+    function normalizeSessions(config) {
+      if (!config) return [];
+      if (Array.isArray(config.sessions) && config.sessions.length > 0) {
+        return config.sessions.map((s, idx) => ({
+          id: s.id || ('s_' + idx + '_' + Date.now()),
+          sessionName: s.sessionName || '',
+          sessionTime: s.sessionTime || '',
+          tutorialLink: s.tutorialLink || config.tutorialLink || '',
+          slotStatus: s.slotStatus || 'SCHEDULE',
+          teachersPresent: s.teachersPresent || ''
+        }));
+      }
+      if (config.sessionName) {
+        return [{
+          id: 's_default',
+          sessionName: config.sessionName,
+          sessionTime: config.sessionTime || '',
+          tutorialLink: config.tutorialLink || '',
+          slotStatus: config.slotStatus || 'SCHEDULE',
+          teachersPresent: config.teachersPresent || ''
+        }];
+      }
+      return [];
+    }
+
+    function parseTime12h(timeStr) {
+      if (!timeStr) return null;
+      const clean = timeStr.trim().toUpperCase();
+      const match = clean.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/);
+      if (!match) return null;
+
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2] ? parseInt(match[2], 10) : 0;
+      const ampm = match[3];
+
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+
+      return { hours, minutes };
+    }
+
+    function isSessionExpired(dateStr, sessionTime) {
+      if (!dateStr) return false;
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return false;
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+
+      const now = new Date();
+      const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dateZero = new Date(year, month, day);
+
+      if (dateZero < todayZero) return true;
+      if (dateZero > todayZero) return false;
+
+      if (!sessionTime || !sessionTime.trim()) return false;
+
+      let endTimeStr = sessionTime;
+      if (sessionTime.includes('-')) {
+        const rangeParts = sessionTime.split('-');
+        endTimeStr = rangeParts[rangeParts.length - 1];
+      } else if (sessionTime.toLowerCase().includes('to')) {
+        const rangeParts = sessionTime.toLowerCase().split('to');
+        endTimeStr = rangeParts[rangeParts.length - 1];
+      }
+
+      const parsedTime = parseTime12h(endTimeStr);
+      if (!parsedTime) return false;
+
+      const sessionEnd = new Date(year, month, day, parsedTime.hours, parsedTime.minutes, 0);
+      return now > sessionEnd;
+    }
+
+    function getSessionEffectiveStatus(dateStr, session) {
+      if (!session) return 'SCHEDULE';
+      if (session.slotStatus === 'SESSION_COMPLETED') return 'SESSION_COMPLETED';
+      if (isSessionExpired(dateStr, session.sessionTime)) {
+        return 'SESSION_COMPLETED';
+      }
+      return session.slotStatus || 'SCHEDULE';
+    }
 
     window.selectAdminState = function(stateCode) {
       currentAdminState = stateCode;
@@ -1282,7 +1360,6 @@
         if (currentAdminState !== 'ALL') {
           config = adminSessionConfigs[currentAdminState + '_' + dateStr] || adminSessionConfigs[dateStr];
         } else {
-          // Look for any configured state session on date
           const stateKeys = ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'];
           for (let st of stateKeys) {
             if (adminSessionConfigs[st + '_' + dateStr]) {
@@ -1293,25 +1370,50 @@
           if (!config) config = adminSessionConfigs[dateStr];
         }
 
-        if (config && config.sessionName) {
-          let statusBadge = '';
-          if (config.slotStatus === 'SESSION_COMPLETED') {
-            statusBadge = '<span style="color: #475569; font-weight: 800; font-size: 0.65rem;">[⚫ COMPLETED]</span> ';
-          } else if (config.slotStatus === 'SLOT_FULL') {
-            statusBadge = '<span style="color: #DC2626; font-weight: 800; font-size: 0.65rem;">[🔴 FULL / BLOCKED]</span> ';
-          } else if (config.slotStatus === 'FILLING_FAST') {
-            statusBadge = '<span style="color: #D97706; font-weight: 800; font-size: 0.65rem;">[🟠 FILLING FAST]</span> ';
-          } else {
-            statusBadge = '<span style="color: #00897B; font-weight: 800; font-size: 0.65rem;">[🟢 SCHEDULE]</span> ';
-          }
+        const normSessions = normalizeSessions(config);
 
-          const stTag = config.state ? `<span style="background: #E2E8F0; color: #334155; font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 800; margin-right: 0.2rem;">${config.state}</span>` : '';
+        if (normSessions.length > 0) {
+          cellHTML += `<div style="display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.3rem;">`;
+          normSessions.forEach((sess, sIdx) => {
+            const effStatus = getSessionEffectiveStatus(dateStr, sess);
+            const isEnded = effStatus === 'SESSION_COMPLETED';
 
+            let statusBadgeText = '[🟢 SCHEDULE]';
+            if (isEnded) statusBadgeText = '[⚫ ENDED]';
+            else if (effStatus === 'SLOT_FULL') statusBadgeText = '[🔴 FULL]';
+            else if (effStatus === 'FILLING_FAST') statusBadgeText = '[🟠 FAST]';
+
+            const stTag = config && config.state ? `<span style="background: #E2E8F0; color: #334155; font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 800; margin-right: 0.2rem;">${config.state}</span>` : '';
+
+            cellHTML += `
+              <div
+                class="session-title-badge"
+                title="${escapeHtml(sess.sessionName)}${sess.sessionTime ? ` (${sess.sessionTime})` : ''} - ${isEnded ? 'Ended' : effStatus}"
+                onclick="openConfigSessionModal('${dateStr}', '${(config && config.state) || currentAdminState}')"
+                style="display: flex; flex-direction: column; gap: 0.15rem; border-left: ${isEnded ? '3px solid #64748B' : effStatus === 'SLOT_FULL' ? '3px solid #DC2626' : effStatus === 'FILLING_FAST' ? '3px solid #D97706' : '3px solid #E52E06'}; padding: 0.3rem 0.45rem; background: ${isEnded ? '#F1F5F9' : '#FFF1F0'}; border-radius: 6px;"
+              >
+                <div style="font-weight: 800; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${isEnded ? '#64748B' : '#0F172A'};">
+                  ${stTag}${isEnded ? '⚫' : '🏷️'} ${escapeHtml(sess.sessionName)}
+                </div>
+                ${sess.sessionTime ? `
+                  <div style="font-size: 0.66rem; color: ${isEnded ? '#94A3B8' : '#64748B'}; font-weight: 700; display: flex; align-items: center; gap: 0.2rem;">
+                    ⏰ ${escapeHtml(sess.sessionTime)} <span style="font-size: 0.62rem;">${statusBadgeText}</span>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          });
+
+          // Inline + button inside day cell to add session
           cellHTML += `
-            <div class="session-title-badge" title="${escapeHtml(config.sessionName)}" onclick="openConfigSessionModal('${dateStr}', '${config.state || currentAdminState}')">
-              ${stTag}${statusBadge}${escapeHtml(config.sessionName)}
-            </div>
-          `;
+            <button
+              type="button"
+              onclick="openConfigSessionModal('${dateStr}')"
+              style="background: #FFF1F0; border: 1px dashed #FFC4BC; color: #E52E06; font-size: 0.68rem; font-weight: 800; padding: 0.2rem 0.4rem; border-radius: 4px; cursor: pointer; display: inline-flex; items-center; justify-content: center; gap: 0.2rem; margin-top: 0.1rem;"
+            >
+              + Add Session
+            </button>
+          </div>`;
         }
 
         // Check bookings & total teacher count for this date & state
@@ -1358,6 +1460,229 @@
       }
     }
 
+    window.renderAdminSessionsModalList = function(dateStr) {
+      const container = document.getElementById('adminSessionsListContainer');
+      if (!container) return;
+
+      container.innerHTML = activeEditingSessions.map((sess, idx) => {
+        const isExp = isSessionExpired(dateStr, sess.sessionTime);
+        const timePresets = [
+          '10:00 AM - 11:30 AM',
+          '11:30 AM - 01:00 PM',
+          '02:00 PM - 03:30 PM',
+          '04:00 PM - 05:30 PM'
+        ];
+
+        const presetButtonsHTML = timePresets.map(preset => `
+          <button
+            type="button"
+            onclick="updateSessionItem(${idx}, 'sessionTime', '${preset}')"
+            style="background: ${sess.sessionTime === preset ? '#E52E06' : '#F1F5F9'}; color: ${sess.sessionTime === preset ? '#FFFFFF' : '#475569'}; border: 1px solid ${sess.sessionTime === preset ? '#E52E06' : '#CBD5E1'}; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+          >
+            ${preset}
+          </button>
+        `).join('');
+
+        const isCompleted = sess.slotStatus === 'SESSION_COMPLETED';
+
+        return `
+          <div style="background: ${isCompleted ? '#F8FAFC' : '#FFFFFF'}; border: 1.5px solid ${isCompleted ? '#94A3B8' : '#CBD5E1'}; border-radius: 12px; padding: 1.1rem 1.25rem; position: relative; ${isCompleted ? 'opacity: 0.85;' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; border-bottom: 1px solid #F1F5F9; padding-bottom: 0.5rem;">
+              <div style="font-size: 0.82rem; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 0.4rem;">
+                <span style="background: ${isCompleted ? '#475569' : '#E52E06'}; color: #FFFFFF; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800;">${idx + 1}</span>
+                Session #${idx + 1} ${isCompleted ? '<span style="color: #475569; font-size: 0.74rem;">(Completed ✅)</span>' : 'Configuration'}
+              </div>
+              <div style="display: flex; gap: 0.4rem; align-items: center;">
+                ${!isCompleted ? `
+                  <button
+                    type="button"
+                    onclick="openEndSingleSessionModal(${idx}, '${dateStr}')"
+                    style="background: #334155; border: 1px solid #1E293B; color: #FFFFFF; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.2rem;"
+                  >
+                    🏁 End Session
+                  </button>
+                ` : ''}
+                ${activeEditingSessions.length > 1 ? `
+                  <button
+                    type="button"
+                    onclick="removeSessionItem(${idx}, '${dateStr}')"
+                    style="background: #FEF2F2; border: 1px solid #FECACA; color: #EF4444; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.72rem; font-weight: 700; cursor: pointer;"
+                  >
+                    ✕ Remove
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+
+            ${isCompleted ? `
+              <div style="background: #334155; border: 1px solid #1E293B; color: #FFFFFF; padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.8rem; font-weight: 800; margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.35rem;">
+                ✅ CPD Session Completed ${sess.teachersPresent ? '— ' + sess.teachersPresent + ' teacher(s) attended' : ''}
+              </div>
+            ` : ''}
+
+            ${isExp && !isCompleted ? `
+              <div style="background: #F1F5F9; border: 1px solid #CBD5E1; color: #475569; padding: 0.4rem 0.65rem; border-radius: 6px; font-size: 0.76rem; font-weight: 700; margin-bottom: 0.85rem;">
+                ⏰ Time Passed: This session slot has automatically ended.
+              </div>
+            ` : ''}
+
+            <!-- Session Name -->
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 700; color: #0F172A;">
+                🏷️ Session Name / Title <span style="color: #E52E06;">*</span>
+              </label>
+              <input
+                type="text"
+                class="input-control"
+                placeholder="e.g. Socio emotional Learning (Session 1)"
+                value="${escapeHtml(sess.sessionName)}"
+                oninput="updateSessionItem(${idx}, 'sessionName', this.value)"
+                ${isCompleted ? 'disabled' : ''}
+                required
+              />
+            </div>
+
+            <!-- Session Time Field with Presets -->
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 700; color: #0F172A;">
+                ⏰ Session Time Range <span style="color: #E52E06;">*</span>
+              </label>
+              <input
+                type="text"
+                class="input-control"
+                placeholder="e.g. 10:00 AM - 11:30 AM"
+                value="${escapeHtml(sess.sessionTime)}"
+                oninput="updateSessionItem(${idx}, 'sessionTime', this.value)"
+                ${isCompleted ? 'disabled' : ''}
+                required
+              />
+              ${!isCompleted ? `
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem;">
+                  ${presetButtonsHTML}
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Tutorial Link -->
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 700; color: #0F172A;">
+                🔗 Tutorial / Teams Meeting Link
+              </label>
+              <input
+                type="url"
+                class="input-control"
+                placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                value="${escapeHtml(sess.tutorialLink)}"
+                oninput="updateSessionItem(${idx}, 'tutorialLink', this.value)"
+                ${isCompleted ? 'disabled' : ''}
+              />
+            </div>
+
+            <!-- Slot Status -->
+            <div class="form-group" style="margin-bottom: 0.2rem;">
+              <label style="font-weight: 700; color: #E52E06; font-size: 0.84rem; display: block; margin-bottom: 0.4rem;">
+                Slot Status & Availability
+              </label>
+              <select
+                class="input-control"
+                style="background: ${isCompleted ? '#F1F5F9' : '#FAFAFC'}; color: #0F172A; font-weight: 700; padding: 0.65rem 0.85rem; border: 1px solid #CBD5E1; border-radius: 8px; width: 100%; font-size: 0.88rem; cursor: pointer;"
+                onchange="updateSessionItem(${idx}, 'slotStatus', this.value)"
+                ${isCompleted ? 'disabled' : ''}
+              >
+                <option value="SCHEDULE" ${sess.slotStatus === 'SCHEDULE' ? 'selected' : ''}>🟢 SCHEDULE — Open for Booking</option>
+                <option value="FILLING_FAST" ${sess.slotStatus === 'FILLING_FAST' ? 'selected' : ''}>🟠 FILLING FAST — Slot will be full shortly</option>
+                <option value="SLOT_FULL" ${sess.slotStatus === 'SLOT_FULL' ? 'selected' : ''}>🔴 SLOT IS FULL / BLOCKED — Blocked</option>
+                <option value="SESSION_COMPLETED" ${sess.slotStatus === 'SESSION_COMPLETED' ? 'selected' : ''}>⚫ SESSION IS COMPLETED — Session ended</option>
+              </select>
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    window.updateSessionItem = function(idx, field, value) {
+      if (activeEditingSessions[idx]) {
+        activeEditingSessions[idx][field] = value;
+        const dateStr = document.getElementById('configDateKey').value;
+        if (field === 'sessionTime') {
+          renderAdminSessionsModalList(dateStr);
+        }
+      }
+    };
+
+    window.removeSessionItem = async function(idx, dateStr) {
+      if (activeEditingSessions.length <= 1) return;
+
+      const removedSession = activeEditingSessions[idx];
+      activeEditingSessions.splice(idx, 1);
+      renderAdminSessionsModalList(dateStr);
+
+      // Immediately persist the removal everywhere
+      const state = document.getElementById('selectConfigState').value || (currentAdminState !== 'ALL' ? currentAdminState : 'CR');
+      const primarySession = activeEditingSessions[0] || {};
+      const configObj = {
+        sessions: activeEditingSessions,
+        sessionName: primarySession.sessionName || 'CPD Session',
+        sessionTime: primarySession.sessionTime || '',
+        tutorialLink: primarySession.tutorialLink || '',
+        slotStatus: primarySession.slotStatus || 'SCHEDULE',
+        teachersPresent: primarySession.teachersPresent || '',
+        state: state
+      };
+
+      // 1. Update localStorage (admin + user scheduler reads from here)
+      adminSessionConfigs[state + '_' + dateStr] = configObj;
+      adminSessionConfigs[dateStr] = configObj;
+      localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
+
+      // 2. Broadcast to other tabs (scheduler tab picks this up instantly)
+      if (window.BroadcastChannel) {
+        try {
+          const syncChannel = new BroadcastChannel('cpd_live_sync');
+          syncChannel.postMessage({ action: 'config_saved', dateStr, config: configObj });
+        } catch (e) {}
+      }
+
+      // 3. Save to Google Sheet backend (removes the row from GS)
+      if (APPS_SCRIPT_URL.trim()) {
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'saveSessionConfig',
+              sessionDate: dateStr,
+              state: state,
+              sessionName: configObj.sessionName,
+              tutorialLink: configObj.tutorialLink,
+              slotStatus: configObj.slotStatus,
+              teachersPresent: configObj.teachersPresent,
+              sessions: JSON.stringify(activeEditingSessions)
+            })
+          });
+        } catch (err) {
+          console.warn('Backend session removal error:', err);
+        }
+      }
+
+      // 4. Refresh admin calendar immediately
+      renderAdminCalendar();
+
+      console.log('Session removed:', removedSession.sessionName, '| Remaining:', activeEditingSessions.length, 'session(s) for', dateStr);
+    };
+
+    window.addAnotherSessionItem = function() {
+      const dateStr = document.getElementById('configDateKey').value;
+      activeEditingSessions.push({
+        id: 's_' + Date.now(),
+        sessionName: '',
+        sessionTime: '10:00 AM - 11:30 AM',
+        tutorialLink: '',
+        slotStatus: 'SCHEDULE',
+        teachersPresent: ''
+      });
+      renderAdminSessionsModalList(dateStr);
+    };
+
     // Modal Triggers
     window.openConfigSessionModal = function(dateStr, targetState = null) {
       document.getElementById('configModalDateLabel').textContent = formatHumanDate(dateStr);
@@ -1372,11 +1697,28 @@
       if (badgeEl) badgeEl.innerHTML = '📍 ' + (stateLabels[activeSt] || activeSt);
 
       const existingConfig = adminSessionConfigs[activeSt + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
-      document.getElementById('inputConfigSessionName').value = existingConfig.sessionName || '';
-      document.getElementById('inputConfigTutorialLink').value = existingConfig.tutorialLink || '';
-      document.getElementById('selectConfigSlotStatus').value = existingConfig.slotStatus || 'SCHEDULE';
-      const tpInput = document.getElementById('inputConfigTeachersPresent');
-      if (tpInput) tpInput.value = existingConfig.teachersPresent || '';
+      const norm = normalizeSessions(existingConfig);
+      if (norm.length === 0) {
+        activeEditingSessions = [{
+          id: 's_' + Date.now(),
+          sessionName: '',
+          sessionTime: '10:00 AM - 11:30 AM',
+          tutorialLink: '',
+          slotStatus: 'SCHEDULE',
+          teachersPresent: ''
+        }];
+      } else {
+        activeEditingSessions = norm;
+      }
+
+      renderAdminSessionsModalList(dateStr);
+
+      const addBtn = document.getElementById('btnAddSessionSlotBtn');
+      if (addBtn) {
+        addBtn.onclick = function() {
+          addAnotherSessionItem();
+        };
+      }
 
       openModal('configSessionModal');
     };
@@ -1552,38 +1894,54 @@
         renderAdminCalendar();
       });
 
-      // End Session button listener (opens custom modal)
-      const btnEndSession = document.getElementById('btnEndSession');
-      if (btnEndSession) {
-        btnEndSession.addEventListener('click', () => {
-          const dateStr = document.getElementById('configDateKey').value;
-          const state = document.getElementById('selectConfigState').value || 'CR';
-          const existingConfig = adminSessionConfigs[state + '_' + dateStr] || adminSessionConfigs[dateStr] || {};
+      // Per-session End Session — open confirmation modal for a specific session
+      let endSessionTargetIdx = -1;
 
-          const stateNames = { 'CR': 'Chain/Retail (CR)', 'UP': 'Uttar Pradesh (UP)', 'GA': 'Goa (GA)', 'DL': 'Delhi (DL)', 'UT': 'Uttarakhand (UT)', 'GJ': 'Gujarat (GJ)' };
-          document.getElementById('endSessionDateLabel').textContent = formatHumanDate(dateStr);
-          document.getElementById('endSessionStateLabel').textContent = stateNames[state] || state;
-          document.getElementById('endSessionTeachersPresentInput').value = existingConfig.teachersPresent || '0';
+      window.openEndSingleSessionModal = function(idx, dateStr) {
+        endSessionTargetIdx = idx;
+        const sess = activeEditingSessions[idx];
+        if (!sess) return;
 
-          openModal('endSessionPromptModal');
-        });
-      }
+        const state = document.getElementById('selectConfigState').value || 'CR';
+        const stateNames = { 'CR': 'Chain/Retail (CR)', 'UP': 'Uttar Pradesh (UP)', 'GA': 'Goa (GA)', 'DL': 'Delhi (DL)', 'UT': 'Uttarakhand (UT)', 'GJ': 'Gujarat (GJ)' };
 
-      // End Session Confirm Form submit listener (Yes, End Session)
+        document.getElementById('endSessionNameLabel').textContent = sess.sessionName || 'CPD Session';
+        document.getElementById('endSessionDateLabel').textContent = formatHumanDate(dateStr);
+        document.getElementById('endSessionStateLabel').textContent = stateNames[state] || state;
+        document.getElementById('endSessionTeachersPresentInput').value = sess.teachersPresent || '0';
+
+        openModal('endSessionPromptModal');
+      };
+
+      // End Session Confirm Form submit listener (Yes, End Session) — per-session
       const endSessionConfirmForm = document.getElementById('endSessionConfirmForm');
       if (endSessionConfirmForm) {
         endSessionConfirmForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          if (endSessionTargetIdx < 0 || !activeEditingSessions[endSessionTargetIdx]) return;
+
           const dateStr = document.getElementById('configDateKey').value;
           const state = document.getElementById('selectConfigState').value || 'CR';
-          const sessionName = document.getElementById('inputConfigSessionName').value.trim() || 'CPD Session';
-          const tutorialLink = document.getElementById('inputConfigTutorialLink').value.trim();
 
           const tpInput = document.getElementById('endSessionTeachersPresentInput');
           const teachersPresent = tpInput ? (tpInput.value.trim() || '0') : '0';
-          const slotStatus = 'SESSION_COMPLETED';
 
-          const configObj = { sessionName, tutorialLink, slotStatus, teachersPresent, state };
+          // Mark only this specific session as completed
+          activeEditingSessions[endSessionTargetIdx].slotStatus = 'SESSION_COMPLETED';
+          activeEditingSessions[endSessionTargetIdx].teachersPresent = teachersPresent;
+
+          // Build config with updated sessions array
+          const primarySession = activeEditingSessions[0] || {};
+          const configObj = {
+            sessions: activeEditingSessions,
+            sessionName: primarySession.sessionName || 'CPD Session',
+            sessionTime: primarySession.sessionTime || '',
+            tutorialLink: primarySession.tutorialLink || '',
+            slotStatus: primarySession.slotStatus || 'SCHEDULE',
+            teachersPresent: primarySession.teachersPresent || '',
+            state: state
+          };
+
           adminSessionConfigs[state + '_' + dateStr] = configObj;
           adminSessionConfigs[dateStr] = configObj;
           localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
@@ -1603,19 +1961,21 @@
                   action: 'saveSessionConfig',
                   sessionDate: dateStr,
                   state: state,
-                  sessionName,
-                  tutorialLink,
-                  slotStatus,
-                  teachersPresent
+                  sessionName: configObj.sessionName,
+                  tutorialLink: configObj.tutorialLink,
+                  slotStatus: configObj.slotStatus,
+                  teachersPresent: configObj.teachersPresent,
+                  sessions: JSON.stringify(activeEditingSessions)
                 })
               });
             } catch (err) {
-              console.warn('Backend session config save error:', err);
+              console.warn('Backend session end error:', err);
             }
           }
 
+          endSessionTargetIdx = -1;
           closeModal('endSessionPromptModal');
-          closeModal('configSessionModal');
+          renderAdminSessionsModalList(dateStr);
           renderAdminCalendar();
         });
       }
@@ -1633,13 +1993,18 @@
 
         const dateStr = document.getElementById('configDateKey').value;
         const state = document.getElementById('selectConfigState').value || 'CR';
-        const sessionName = document.getElementById('inputConfigSessionName').value.trim();
-        const tutorialLink = document.getElementById('inputConfigTutorialLink').value.trim();
-        const slotStatus = document.getElementById('selectConfigSlotStatus').value;
-        const tpEl = document.getElementById('inputConfigTeachersPresent');
-        const teachersPresent = tpEl ? tpEl.value.trim() : '';
 
-        const configObj = { sessionName, tutorialLink, slotStatus, teachersPresent, state };
+        const primarySession = activeEditingSessions[0] || {};
+        const configObj = {
+          sessions: activeEditingSessions,
+          sessionName: primarySession.sessionName || 'CPD Session',
+          sessionTime: primarySession.sessionTime || '',
+          tutorialLink: primarySession.tutorialLink || '',
+          slotStatus: primarySession.slotStatus || 'SCHEDULE',
+          teachersPresent: primarySession.teachersPresent || '',
+          state: state
+        };
+
         adminSessionConfigs[state + '_' + dateStr] = configObj;
         adminSessionConfigs[dateStr] = configObj;
         localStorage.setItem('cpd_admin_session_configs', JSON.stringify(adminSessionConfigs));
@@ -1659,10 +2024,11 @@
                 action: 'saveSessionConfig',
                 sessionDate: dateStr,
                 state: state,
-                sessionName,
-                tutorialLink,
-                slotStatus,
-                teachersPresent
+                sessionName: configObj.sessionName,
+                tutorialLink: configObj.tutorialLink,
+                slotStatus: configObj.slotStatus,
+                teachersPresent: configObj.teachersPresent,
+                sessions: JSON.stringify(activeEditingSessions)
               })
             });
           } catch (err) {
