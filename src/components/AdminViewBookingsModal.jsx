@@ -21,7 +21,11 @@ export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, 
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  const totalTeachers = bookingsList.reduce((acc, b) => acc + (parseInt(b.totalTeachers, 10) || 1), 0);
+  const totalTeachers = bookingsList.reduce((acc, b) => {
+    if (b.registrantType === 'Teacher') return acc + 1;
+    const cnt = parseInt(b.totalTeachers, 10);
+    return acc + (isNaN(cnt) || cnt <= 0 ? 1 : cnt);
+  }, 0);
   const sessionTitle = sessionConfig?.sessionName || 'CPD Session';
 
   const handleSaveTeachersPresent = async () => {
@@ -93,10 +97,16 @@ export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, 
               {bookingsList.map((b, idx) => (
                 <div key={idx} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '1rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A' }}>{b.schoolName}</span>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#E6F9F6', color: '#00897B', border: '1px solid #B2DFDB', padding: '0.15rem 0.5rem', borderRadius: '50px' }}>
-                        {b.totalTeachers || 1} Teachers
+                      <span style={{
+                        fontSize: '0.72rem', fontWeight: 800,
+                        background: b.registrantType === 'Teacher' ? '#EFF6FF' : '#E6F9F6',
+                        color: b.registrantType === 'Teacher' ? '#2563EB' : '#00897B',
+                        border: `1px solid ${b.registrantType === 'Teacher' ? '#BFDBFE' : '#B2DFDB'}`,
+                        padding: '0.15rem 0.55rem', borderRadius: '50px'
+                      }}>
+                        {b.registrantType === 'Teacher' ? '👨‍🏫 Teacher (Individual)' : `🏢 SPOC (${b.totalTeachers || 1} Teachers)`}
                       </span>
                       {b.state && (
                         <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#FFF1F0', color: '#E52E06', border: '1px solid #FFC4BC', padding: '0.15rem 0.5rem', borderRadius: '50px' }}>
@@ -105,7 +115,7 @@ export default function AdminViewBookingsModal({ isOpen, dateStr, bookingsList, 
                       )}
                     </div>
                     <div style={{ fontSize: '0.82rem', color: '#64748B', marginTop: '0.25rem' }}>
-                      👤 SPOC: <strong>{b.spocName}</strong> | 📞 {b.spocPhone} | ✉️ {b.spocEmail}
+                      👤 {b.registrantType === 'Teacher' ? 'Teacher' : 'SPOC'}: <strong>{b.spocName}</strong> | 📞 {b.spocPhone} | ✉️ {b.spocEmail}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>

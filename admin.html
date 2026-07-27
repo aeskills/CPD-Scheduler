@@ -1366,8 +1366,12 @@
       const list = adminBookings[stKey] || [];
       let totalTeachers = 0;
       list.forEach(b => {
-        const cnt = parseInt(b.totalTeachers, 10);
-        totalTeachers += (isNaN(cnt) || cnt <= 0) ? 1 : cnt;
+        if (b.registrantType === 'Teacher') {
+          totalTeachers += 1;
+        } else {
+          const cnt = parseInt(b.totalTeachers, 10);
+          totalTeachers += (isNaN(cnt) || cnt <= 0) ? 1 : cnt;
+        }
       });
 
       document.getElementById('viewTotalTeachersCount').textContent = `👨‍🏫 ${totalTeachers} Teachers`;
@@ -1378,26 +1382,31 @@
         container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No school bookings registered for this date yet.</div>`;
       } else {
         container.innerHTML = list.map((item, idx) => {
+          const isTeacher = item.registrantType === 'Teacher';
           const tCount = (item.totalTeachers && item.totalTeachers !== 'undefined' && !isNaN(parseInt(item.totalTeachers, 10))) ? parseInt(item.totalTeachers, 10) : 1;
           const sName = (item.spocName && item.spocName !== 'undefined') ? item.spocName : item.schoolName;
           const sPhone = (item.spocPhone && item.spocPhone !== 'undefined') ? item.spocPhone : 'N/A';
           const sEmail = (item.spocEmail && item.spocEmail !== 'undefined') ? item.spocEmail : 'N/A';
+
+          const badgeText = isTeacher ? '👨‍🏫 Teacher (Individual)' : `🏢 SPOC (${tCount} Teachers)`;
+          const badgeBg = isTeacher ? 'rgba(37, 99, 235, 0.1)' : 'rgba(245, 166, 35, 0.1)';
+          const badgeColor = isTeacher ? '#2563EB' : 'var(--gold-primary)';
 
           return `
             <div class="admin-spoc-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; margin-bottom: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
               <div style="flex: 1;">
                 <div style="font-size: 1rem; font-weight: 700; color: var(--text-main);">${escapeHtml(item.schoolName)}</div>
                 <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.3rem;">
-                  👤 SPOC: <strong style="color: var(--text-main);">${escapeHtml(sName)}</strong> &bull; 📞 ${escapeHtml(sPhone)} &bull; ✉️ ${escapeHtml(sEmail)}
+                  👤 ${isTeacher ? 'Teacher' : 'SPOC'}: <strong style="color: var(--text-main);">${escapeHtml(sName)}</strong> &bull; 📞 ${escapeHtml(sPhone)} &bull; ✉️ ${escapeHtml(sEmail)}
                 </div>
-                <div style="font-size: 0.82rem; color: var(--gold-primary); font-weight: 700; margin-top: 0.4rem; background: rgba(245, 166, 35, 0.1); padding: 0.25rem 0.6rem; border-radius: 4px; display: inline-block;">
-                  👨‍🏫 ${tCount} Teachers Attending
+                <div style="font-size: 0.82rem; color: ${badgeColor}; font-weight: 700; margin-top: 0.4rem; background: ${badgeBg}; padding: 0.25rem 0.6rem; border-radius: 4px; display: inline-block;">
+                  ${badgeText}
                 </div>
               </div>
               <div class="spoc-actions">
-                <button class="btn-spoc-edit" title="Edit SPOC Booking Details" onclick="openEditBookingModal('${dateStr}', ${idx})">
+                <button class="btn-spoc-edit" title="Edit Booking Details" onclick="openEditBookingModal('${dateStr}', ${idx})">
                   <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002h14a2 2 0 002-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                   <span>Edit</span>

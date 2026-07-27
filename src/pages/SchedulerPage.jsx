@@ -207,6 +207,7 @@ export default function SchedulerPage() {
       sessionDate: bookingData.sessionDate,
       state: bookingData.state,
       sessionName: bookingData.sessionName,
+      registrantType: bookingData.registrantType || 'SPOC',
       spocName: bookingData.spocName,
       spocPhone: bookingData.spocPhone,
       spocEmail: bookingData.spocEmail,

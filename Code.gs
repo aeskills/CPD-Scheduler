@@ -189,13 +189,20 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 4. Create New Teacher Booking
-    const sessionDate   = safeString(payload.sessionDate);
-    const spocName      = safeString(payload.spocName);
-    const spocPhone     = safeString(payload.spocPhone);
-    const spocEmail     = safeString(payload.spocEmail);
-    const schoolName    = safeString(payload.schoolName);
-    const totalTeachers = safeString(payload.totalTeachers) || '1';
+    // 4. Create New Booking (SPOC or Teacher)
+    const sessionDate    = safeString(payload.sessionDate);
+    const registrantType = safeString(payload.registrantType || 'SPOC'); // 'SPOC' or 'Teacher'
+    const spocName       = safeString(payload.spocName || payload.name);
+    const spocPhone      = safeString(payload.spocPhone || payload.phone);
+    const spocEmail      = safeString(payload.spocEmail || payload.email);
+    const schoolName     = safeString(payload.schoolName);
+    let totalTeachers    = safeString(payload.totalTeachers);
+
+    if (registrantType === 'Teacher') {
+      totalTeachers = '1';
+    } else if (!totalTeachers) {
+      totalTeachers = '1';
+    }
 
     const configsMap = fetchAdminSessionsMap();
     const activeConfig = configsMap[state + '_' + sessionDate] || {};
@@ -204,7 +211,7 @@ function doPost(e) {
     }
 
     if (!sessionDate || !spocName || !spocEmail || !schoolName) {
-      throw new Error('Invalid submission: Missing required SPOC booking details.');
+      throw new Error('Invalid submission: Missing required booking details.');
     }
 
     const sessionName = activeConfig.sessionName || safeString(payload.sessionName) || 'CPD Session';
@@ -216,21 +223,23 @@ function doPost(e) {
 
     sheet.appendRow([
       timestamp,       // Col A: Timestamp
-      sessionDate,     // Col B: Session Date
-      sessionName,     // Col C: Session Name
-      spocName,        // Col D: SPOC Name
-      spocPhone,       // Col E: SPOC Phone
-      spocEmail,       // Col F: SPOC Email
-      schoolName,      // Col G: School Name
-      totalTeachers,   // Col H: Total Teachers
-      reminderSent,    // Col I: Reminder Sent (Y/N)
-      teamsLink        // Col J: Teams Link
+      registrantType,  // Col B: Type ('SPOC' or 'Teacher')
+      sessionDate,     // Col C: Session Date
+      sessionName,     // Col D: Session Name
+      spocName,        // Col E: Name
+      spocPhone,       // Col F: Phone
+      spocEmail,       // Col G: Email
+      schoolName,      // Col H: School Name
+      totalTeachers,   // Col I: Total Teachers (empty for Teacher)
+      reminderSent,    // Col J: Reminder Sent (Y/N)
+      teamsLink        // Col K: Teams Link
     ]);
 
-    formatSheetColumns(sheet, 10);
+    formatSheetColumns(sheet, 11);
 
     sendConfirmationEmail({
       sessionName: sessionName,
+      registrantType: registrantType,
       spocName: spocName,
       spocEmail: spocEmail,
       schoolName: schoolName,
@@ -318,12 +327,16 @@ function sendConfirmationEmail(details) {
     </html>
   `;
 
-  MailApp.sendEmail({
-    to: details.spocEmail,
-    subject: subject,
-    body: `Confirmed: ${sessionTitle} for ${details.schoolName} on ${formattedDate}. Teams Link: ${details.teamsLink}`,
-    htmlBody: htmlBody
-  });
+  try {
+    MailApp.sendEmail({
+      to: details.spocEmail,
+      subject: subject,
+      body: `Confirmed: ${sessionTitle} for ${details.schoolName} on ${formattedDate}. Teams Link: ${details.teamsLink}`,
+      htmlBody: htmlBody
+    });
+  } catch (emailErr) {
+    Logger.log('Confirmation email note: ' + emailErr.toString());
+  }
 }
 
 /**
@@ -422,18 +435,31 @@ function updateBookingInSheet(dateStr, index, bData, state) {
   const sheet = getOrCreateBookingsSheet(state);
   const data = sheet.getDataRange().getValues();
   let matchCount = 0;
+  const is11Col = data.length > 0 && safeString(data[0][1]) === 'Type';
 
   for (let i = 1; i < data.length; i++) {
-    let rDate = data[i][1];
+    let rDate = is11Col ? data[i][2] : data[i][1];
     if (rDate) {
       rDate = formatDateISO(rDate);
       if (rDate && rDate.substring(0, 10) === dateStr) {
         if (matchCount === index) {
-          sheet.getRange(i + 1, 4).setValue(bData.spocName);
-          sheet.getRange(i + 1, 5).setValue(bData.spocPhone);
-          sheet.getRange(i + 1, 6).setValue(bData.spocEmail);
-          sheet.getRange(i + 1, 7).setValue(bData.schoolName);
-          sheet.getRange(i + 1, 8).setValue(bData.totalTeachers);
+          const typeVal = bData.registrantType || (is11Col ? safeString(data[i][1]) : 'SPOC');
+          const tTeachers = typeVal === 'Teacher' ? '1' : (bData.totalTeachers || '1');
+
+          if (is11Col) {
+            sheet.getRange(i + 1, 2).setValue(typeVal);
+            sheet.getRange(i + 1, 5).setValue(bData.spocName);
+            sheet.getRange(i + 1, 6).setValue(bData.spocPhone);
+            sheet.getRange(i + 1, 7).setValue(bData.spocEmail);
+            sheet.getRange(i + 1, 8).setValue(bData.schoolName);
+            sheet.getRange(i + 1, 9).setValue(tTeachers);
+          } else {
+            sheet.getRange(i + 1, 4).setValue(bData.spocName);
+            sheet.getRange(i + 1, 5).setValue(bData.spocPhone);
+            sheet.getRange(i + 1, 6).setValue(bData.spocEmail);
+            sheet.getRange(i + 1, 7).setValue(bData.schoolName);
+            sheet.getRange(i + 1, 8).setValue(tTeachers);
+          }
           break;
         }
         matchCount++;
@@ -446,9 +472,10 @@ function deleteBookingFromSheet(dateStr, index, state) {
   const sheet = getOrCreateBookingsSheet(state);
   const data = sheet.getDataRange().getValues();
   let matchCount = 0;
+  const is11Col = data.length > 0 && safeString(data[0][1]) === 'Type';
 
   for (let i = 1; i < data.length; i++) {
-    let rDate = data[i][1];
+    let rDate = is11Col ? data[i][2] : data[i][1];
     if (rDate) {
       rDate = formatDateISO(rDate);
       if (rDate && rDate.substring(0, 10) === dateStr) {
@@ -472,22 +499,26 @@ function fetchBookingsMap(includeAdminDetails) {
   states.forEach(st => {
     const sheet = getOrCreateBookingsSheet(st);
     const data = sheet.getDataRange().getValues();
+    const is11Col = data.length > 0 && safeString(data[0][1]) === 'Type';
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
-      let rowDate = row[1];
+      let rowDate = is11Col ? row[2] : row[1];
 
       if (rowDate) {
         rowDate = formatDateISO(rowDate);
 
         if (rowDate && rowDate.length >= 10) {
           const cleanDate = rowDate.substring(0, 10);
-          let sessionName   = safeString(row[2]);
-          let spocName      = safeString(row[3]);
-          let spocPhone     = safeString(row[4]);
-          let spocEmail     = safeString(row[5]);
-          let schoolName    = safeString(row[6]);
-          let totalTeachers = safeString(row[7]);
+          let registrantType = is11Col ? safeString(row[1]) : 'SPOC';
+          if (!registrantType) registrantType = 'SPOC';
+
+          let sessionName   = is11Col ? safeString(row[3]) : safeString(row[2]);
+          let spocName      = is11Col ? safeString(row[4]) : safeString(row[3]);
+          let spocPhone     = is11Col ? safeString(row[5]) : safeString(row[4]);
+          let spocEmail     = is11Col ? safeString(row[6]) : safeString(row[5]);
+          let schoolName    = is11Col ? safeString(row[7]) : safeString(row[6]);
+          let totalTeachers = is11Col ? safeString(row[8]) : safeString(row[7]);
 
           if (!schoolName) schoolName = 'Registered School';
           if (!spocName || spocName === 'undefined') spocName = schoolName;
@@ -497,11 +528,12 @@ function fetchBookingsMap(includeAdminDetails) {
 
           const bItem = {
             sessionName: sessionName || 'CPD Session',
+            registrantType: registrantType,
             spocName: spocName,
             spocPhone: spocPhone,
             spocEmail: spocEmail,
             schoolName: schoolName,
-            totalTeachers: totalTeachers,
+            totalTeachers: registrantType === 'Teacher' ? '1' : (totalTeachers || '1'),
             state: st
           };
 
@@ -515,7 +547,7 @@ function fetchBookingsMap(includeAdminDetails) {
 }
 
 /**
- * Get or Create Per-State Bookings Sheet
+ * Get or Create Per-State Bookings Sheet (11-column layout)
  */
 function getOrCreateBookingsSheet(state) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -524,24 +556,73 @@ function getOrCreateBookingsSheet(state) {
 
   let sheet = ss.getSheetByName(tabName);
   
+  const subHeaders = [
+    'Timestamp',
+    'Type',
+    'Session Date',
+    'Session Name',
+    'Name',
+    'Phone',
+    'Email',
+    'School Name',
+    'Total Teachers',
+    'Reminder Sent',
+    'Teams Link'
+  ];
+
   if (!sheet) {
     sheet = ss.insertSheet(tabName);
-    sheet.appendRow([
-      'Timestamp',
-      'Session Date',
-      'Session Name',
-      'SPOC Name',
-      'SPOC Phone',
-      'SPOC Email',
-      'School Name',
-      'Total Teachers',
-      'Reminder Sent',
-      'Teams Link'
-    ]);
-    formatSheetColumns(sheet, 10);
+    sheet.appendRow(subHeaders);
+    formatSheetColumns(sheet, 11);
+  } else {
+    // If existing sheet has 10 columns, auto-upgrade header to 11 columns
+    const col2Header = safeString(sheet.getRange(1, 2).getValue());
+    if (col2Header !== 'Type') {
+      upgradeBookingsSheetHeaders(sheet);
+    }
   }
 
   return sheet;
+}
+
+/**
+ * Upgrade existing 10-column booking sheet to 11-column layout (inserts Type column at Col B)
+ */
+function upgradeBookingsSheetHeaders(sheet) {
+  if (!sheet) return;
+  const col2Header = safeString(sheet.getRange(1, 2).getValue());
+  if (col2Header === 'Type') return;
+
+  sheet.insertColumnBefore(2);
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const types = [];
+    for (let i = 2; i <= lastRow; i++) {
+      types.push(['SPOC']);
+    }
+    sheet.getRange(2, 2, types.length, 1).setValues(types);
+  }
+
+  const subHeaders = [
+    ['Timestamp', 'Type', 'Session Date', 'Session Name', 'Name', 'Phone', 'Email', 'School Name', 'Total Teachers', 'Reminder Sent', 'Teams Link']
+  ];
+  sheet.getRange(1, 1, 1, 11).setValues(subHeaders);
+  sheet.getRange(1, 1, 1, 11).setBackground('#0F172A').setFontColor('#00D2C4').setFontWeight('bold');
+
+  formatSheetColumns(sheet, 11);
+}
+
+/**
+ * Standalone Helper: Upgrades all per-state booking tabs to 11 columns
+ */
+function runBookingsSheetUpgrade() {
+  const states = ['CR', 'UP', 'GA', 'DL', 'RJ', 'GJ'];
+  states.forEach(st => {
+    const sheet = getOrCreateBookingsSheet(st);
+    upgradeBookingsSheetHeaders(sheet);
+  });
+  Logger.log('All per-state booking sheets upgraded to 11-column layout with Type.');
 }
 
 /**

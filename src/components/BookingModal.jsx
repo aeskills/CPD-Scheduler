@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
 
 export default function BookingModal({ isOpen, dateStr, config, stateCode, onClose, onSubmitSuccess }) {
+  const [registrantType, setRegistrantType] = useState('SPOC'); // 'SPOC' or 'Teacher'
   const [spocName, setSpocName] = useState('');
   const [spocPhone, setSpocPhone] = useState('');
   const [spocEmail, setSpocEmail] = useState('');
@@ -38,8 +39,15 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
 
     if (!schoolName.trim()) newErrors.schoolName = true;
 
-    const tNum = parseInt(totalTeachers, 10);
-    if (isNaN(tNum) || tNum <= 0) newErrors.totalTeachers = true;
+    let tNum = 1;
+    if (registrantType === 'SPOC') {
+      const parsedNum = parseInt(totalTeachers, 10);
+      if (isNaN(parsedNum) || parsedNum <= 0) {
+        newErrors.totalTeachers = true;
+      } else {
+        tNum = parsedNum;
+      }
+    }
 
     if (!dpdpConsent) newErrors.dpdpConsent = true;
 
@@ -50,12 +58,13 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
     await onSubmitSuccess({
       sessionDate: dateStr,
       sessionName: sessionTitle,
+      registrantType: registrantType,
       spocName: spocName.trim(),
       spocPhone: spocPhone.trim(),
       spocEmail: spocEmail.trim(),
       schoolName: schoolName.trim(),
       totalTeachers: tNum,
-      state: stateCode || 'UP'
+      state: stateCode || 'CR'
     });
     setIsSubmitting(false);
     setIsSuccess(true);
@@ -63,6 +72,7 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
 
   const handleDone = () => {
     setIsSuccess(false);
+    setRegistrantType('SPOC');
     setSpocName('');
     setSpocPhone('');
     setSpocEmail('');
@@ -95,7 +105,7 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
                 CPD Session Scheduled!
               </h3>
               <p style={{ fontSize: '0.92rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                Successfully registered <strong>{schoolName}</strong> for <strong>{sessionTitle}</strong> on <strong>{formattedDate}</strong>.<br /><br />
+                Successfully registered {registrantType === 'Teacher' ? 'Teacher' : 'SPOC'} <strong>{spocName}</strong> ({schoolName}) for <strong>{sessionTitle}</strong> on <strong>{formattedDate}</strong>.<br /><br />
                 A confirmation email with the Microsoft Teams link has been dispatched to <strong>{spocEmail}</strong>.
               </p>
               <button type="button" class="btn-submit" onClick={handleDone}>
@@ -133,14 +143,58 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
                 </div>
               </div>
 
+              {/* Registrant Role Segmented Toggle */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '0.5px' }}>
+                  Registering As <span style={{ color: '#E52E06' }}>*</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', background: '#F1F5F9', padding: '0.3rem', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setRegistrantType('SPOC'); setErrors({}); }}
+                    style={{
+                      flex: 1, padding: '0.65rem 0.5rem', borderRadius: '8px', border: 'none',
+                      fontWeight: 800, fontSize: '0.88rem', cursor: 'pointer',
+                      background: registrantType === 'SPOC' ? '#FFFFFF' : 'transparent',
+                      color: registrantType === 'SPOC' ? '#E52E06' : '#64748B',
+                      boxShadow: registrantType === 'SPOC' ? '0 2px 5px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    🏢 SPOC (Group Booking)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setRegistrantType('Teacher'); setErrors({}); }}
+                    style={{
+                      flex: 1, padding: '0.65rem 0.5rem', borderRadius: '8px', border: 'none',
+                      fontWeight: 800, fontSize: '0.88rem', cursor: 'pointer',
+                      background: registrantType === 'Teacher' ? '#FFFFFF' : 'transparent',
+                      color: registrantType === 'Teacher' ? '#E52E06' : '#64748B',
+                      boxShadow: registrantType === 'Teacher' ? '0 2px 5px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    👨‍🏫 Teacher (Individual)
+                  </button>
+                </div>
+              </div>
+
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '0.85rem 1.1rem', borderRadius: '10px', marginBottom: '1.25rem', fontSize: '0.84rem', color: '#334155', lineHeight: 1.6 }}>
                 <strong style={{ color: '#991B1B' }}>Please fill all your details carefully.</strong><br/>
-                <span style={{ color: '#475569' }}>The Microsoft Teams session meeting link will be dispatched directly to your SPOC email address upon schedule confirmation.</span>
+                <span style={{ color: '#475569' }}>
+                  {registrantType === 'SPOC'
+                    ? 'The Microsoft Teams meeting link will be dispatched directly to your SPOC email address.'
+                    : 'The Microsoft Teams meeting link will be dispatched directly to your Teacher email address.'
+                  }
+                </span>
               </div>
 
               <form onSubmit={handleSubmit} noValidate>
                 <div class="form-group">
-                  <label htmlFor="inputSpocName">SPOC Name <span style={{ color: '#E52E06' }}>*</span></label>
+                  <label htmlFor="inputSpocName">
+                    {registrantType === 'SPOC' ? 'SPOC Name' : 'Teacher Name'} <span style={{ color: '#E52E06' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     id="inputSpocName"
@@ -149,11 +203,17 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
                     value={spocName}
                     onChange={(e) => setSpocName(e.target.value)}
                   />
-                  {errors.spocName && <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>Please enter the SPOC's full name.</div>}
+                  {errors.spocName && (
+                    <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>
+                      Please enter full name.
+                    </div>
+                  )}
                 </div>
 
                 <div class="form-group">
-                  <label htmlFor="inputSpocPhone">SPOC Phone Number <span style={{ color: '#E52E06' }}>*</span></label>
+                  <label htmlFor="inputSpocPhone">
+                    {registrantType === 'SPOC' ? 'SPOC Phone Number' : 'Teacher Phone Number'} <span style={{ color: '#E52E06' }}>*</span>
+                  </label>
                   <input
                     type="tel"
                     id="inputSpocPhone"
@@ -162,20 +222,30 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
                     value={spocPhone}
                     onChange={(e) => setSpocPhone(e.target.value)}
                   />
-                  {errors.spocPhone && <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>Please enter a valid 10-digit phone number.</div>}
+                  {errors.spocPhone && (
+                    <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>
+                      Please enter a valid 10-digit phone number.
+                    </div>
+                  )}
                 </div>
 
                 <div class="form-group">
-                  <label htmlFor="inputSpocEmail">SPOC Email ID <span style={{ color: '#E52E06' }}>*</span></label>
+                  <label htmlFor="inputSpocEmail">
+                    {registrantType === 'SPOC' ? 'SPOC Email ID' : 'Teacher Email ID'} <span style={{ color: '#E52E06' }}>*</span>
+                  </label>
                   <input
                     type="email"
                     id="inputSpocEmail"
                     class={`input-control ${errors.spocEmail ? 'error' : ''}`}
-                    placeholder="spoc@school.edu.in"
+                    placeholder={registrantType === 'SPOC' ? 'spoc@school.edu.in' : 'teacher@school.edu.in'}
                     value={spocEmail}
                     onChange={(e) => setSpocEmail(e.target.value)}
                   />
-                  {errors.spocEmail && <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>Please enter a valid email address.</div>}
+                  {errors.spocEmail && (
+                    <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>
+                      Please enter a valid email address.
+                    </div>
+                  )}
                 </div>
 
                 <div class="form-group">
@@ -191,20 +261,24 @@ export default function BookingModal({ isOpen, dateStr, config, stateCode, onClo
                   {errors.schoolName && <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>Please enter your school name.</div>}
                 </div>
 
-                <div class="form-group">
-                  <label htmlFor="inputTotalTeachers">Total Teachers Attending <span style={{ color: '#E52E06' }}>*</span></label>
-                  <input
-                    type="number"
-                    id="inputTotalTeachers"
-                    class={`input-control ${errors.totalTeachers ? 'error' : ''}`}
-                    placeholder="e.g. 15"
-                    min="1"
-                    value={totalTeachers}
-                    onChange={(e) => setTotalTeachers(e.target.value)}
-                  />
-                  {errors.totalTeachers && <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>Please enter a positive number of teachers.</div>}
-                </div>
+                {/* Total Teachers field only for SPOC type */}
+                {registrantType === 'SPOC' && (
+                  <div class="form-group">
+                    <label htmlFor="inputTotalTeachers">Total Teachers Attending <span style={{ color: '#E52E06' }}>*</span></label>
+                    <input
+                      type="number"
+                      id="inputTotalTeachers"
+                      class={`input-control ${errors.totalTeachers ? 'error' : ''}`}
+                      placeholder="e.g. 15"
+                      min="1"
+                      value={totalTeachers}
+                      onChange={(e) => setTotalTeachers(e.target.value)}
+                    />
+                    {errors.totalTeachers && <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: '0.35rem' }}>Please enter a positive number of teachers.</div>}
+                  </div>
+                )}
 
+                {/* Consent Checkbox / Radio */}
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.85rem', marginBottom: '1.25rem' }}>
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.82rem', color: '#475569', cursor: 'pointer', lineHeight: 1.45 }}>
                     <input
