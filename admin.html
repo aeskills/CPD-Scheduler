@@ -1460,12 +1460,67 @@
       }
     }
 
+    function time24To12h(t24) {
+      if (!t24) return '';
+      const parts = t24.split(':');
+      if (parts.length < 2) return '';
+      let h = parseInt(parts[0], 10);
+      const m = parts[1];
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      const hStr = h < 10 ? '0' + h : '' + h;
+      return `${hStr}:${m} ${ampm}`;
+    }
+
+    function time12hTo24(t12) {
+      if (!t12) return '';
+      const match = t12.trim().toUpperCase().match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/);
+      if (!match) return '';
+      let h = parseInt(match[1], 10);
+      const m = match[2];
+      const ampm = match[3];
+      if (ampm === 'PM' && h < 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      const hStr = h < 10 ? '0' + h : '' + h;
+      return `${hStr}:${m}`;
+    }
+
+    function extractStartEnd24h(timeRangeStr) {
+      if (!timeRangeStr) return { start: '10:00', end: '11:30' };
+      const parts = timeRangeStr.split(/-|to/i);
+      const start12 = parts[0] ? parts[0].trim() : '';
+      const end12 = parts[1] ? parts[1].trim() : '';
+      return {
+        start: time12hTo24(start12) || '10:00',
+        end: time12hTo24(end12) || '11:30'
+      };
+    }
+
+    window.updateClockTimeItem = function(idx, newTime24, type) {
+      if (!activeEditingSessions[idx]) return;
+      const currentRange = activeEditingSessions[idx].sessionTime || '10:00 AM - 11:30 AM';
+      const extracted = extractStartEnd24h(currentRange);
+      let s24 = extracted.start;
+      let e24 = extracted.end;
+
+      if (type === 'start') s24 = newTime24;
+      if (type === 'end') e24 = newTime24;
+
+      const formatted12h = `${time24To12h(s24)} - ${time24To12h(e24)}`;
+      activeEditingSessions[idx].sessionTime = formatted12h;
+
+      const dateStr = document.getElementById('configDateKey').value;
+      renderAdminSessionsModalList(dateStr);
+    };
+
     window.renderAdminSessionsModalList = function(dateStr) {
       const container = document.getElementById('adminSessionsListContainer');
       if (!container) return;
 
       container.innerHTML = activeEditingSessions.map((sess, idx) => {
         const isExp = isSessionExpired(dateStr, sess.sessionTime);
+        const times24 = extractStartEnd24h(sess.sessionTime);
         const timePresets = [
           '10:00 AM - 11:30 AM',
           '11:30 AM - 01:00 PM',
@@ -1477,7 +1532,7 @@
           <button
             type="button"
             onclick="updateSessionItem(${idx}, 'sessionTime', '${preset}')"
-            style="background: ${sess.sessionTime === preset ? '#E52E06' : '#F1F5F9'}; color: ${sess.sessionTime === preset ? '#FFFFFF' : '#475569'}; border: 1px solid ${sess.sessionTime === preset ? '#E52E06' : '#CBD5E1'}; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+            style="background: ${sess.sessionTime === preset ? '#E52E06' : '#F1F5F9'}; color: ${sess.sessionTime === preset ? '#FFFFFF' : '#475569'}; border: 1px solid ${sess.sessionTime === preset ? '#E52E06' : '#CBD5E1'}; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
           >
             ${preset}
           </button>
@@ -1542,11 +1597,49 @@
               />
             </div>
 
-            <!-- Session Time Field with Presets -->
+            <!-- Session Time Range with Clock Pickers & Presets -->
             <div class="form-group" style="margin-bottom: 1rem;">
-              <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 700; color: #0F172A;">
-                ⏰ Session Time Range <span style="color: #E52E06;">*</span>
+              <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #0F172A; margin-bottom: 0.35rem;">
+                <span style="display: flex; align-items: center; gap: 0.35rem;">⏰ Session Time Range <span style="color: #E52E06;">*</span></span>
+                <span style="font-size: 0.72rem; color: #64748B; font-weight: 600;">Pick clock time or use preset</span>
               </label>
+
+              <!-- Clock Pickers (Start Time & End Time) -->
+              <div style="background: #F8FAFC; border: 1px solid #CBD5E1; padding: 0.65rem 0.85rem; border-radius: 10px; margin-bottom: 0.6rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 130px;">
+                    <label style="font-size: 0.73rem; font-weight: 800; color: #475569; display: block; margin-bottom: 0.25rem;">
+                      🕒 Start Time (Clock)
+                    </label>
+                    <input
+                      type="time"
+                      class="input-control"
+                      value="${times24.start}"
+                      onchange="updateClockTimeItem(${idx}, this.value, 'start')"
+                      style="font-weight: 800; padding: 0.45rem 0.65rem; font-size: 0.88rem; background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 8px; width: 100%; cursor: pointer;"
+                      ${isCompleted ? 'disabled' : ''}
+                    />
+                  </div>
+
+                  <div style="font-weight: 800; color: #E52E06; margin-top: 0.85rem; font-size: 1rem;">➔</div>
+
+                  <div style="flex: 1; min-width: 130px;">
+                    <label style="font-size: 0.73rem; font-weight: 800; color: #475569; display: block; margin-bottom: 0.25rem;">
+                      🕓 End Time (Clock)
+                    </label>
+                    <input
+                      type="time"
+                      class="input-control"
+                      value="${times24.end}"
+                      onchange="updateClockTimeItem(${idx}, this.value, 'end')"
+                      style="font-weight: 800; padding: 0.45rem 0.65rem; font-size: 0.88rem; background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 8px; width: 100%; cursor: pointer;"
+                      ${isCompleted ? 'disabled' : ''}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Formatted Session Time Range Input -->
               <input
                 type="text"
                 class="input-control"
@@ -1557,7 +1650,8 @@
                 required
               />
               ${!isCompleted ? `
-                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem;">
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; align-items: center;">
+                  <span style="font-size: 0.72rem; color: #64748B; font-weight: 700;">Quick Presets:</span>
                   ${presetButtonsHTML}
                 </div>
               ` : ''}

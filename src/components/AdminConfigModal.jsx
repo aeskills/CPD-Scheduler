@@ -11,6 +11,43 @@ const TIME_PRESETS = [
   '04:00 PM - 05:30 PM'
 ];
 
+function time24To12h(t24) {
+  if (!t24) return '';
+  const parts = t24.split(':');
+  if (parts.length < 2) return '';
+  let h = parseInt(parts[0], 10);
+  const m = parts[1];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  const hStr = h < 10 ? '0' + h : '' + h;
+  return `${hStr}:${m} ${ampm}`;
+}
+
+function time12hTo24(t12) {
+  if (!t12) return '';
+  const match = t12.trim().toUpperCase().match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/);
+  if (!match) return '';
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const ampm = match[3];
+  if (ampm === 'PM' && h < 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  const hStr = h < 10 ? '0' + h : '' + h;
+  return `${hStr}:${m}`;
+}
+
+function extractStartEnd24h(timeRangeStr) {
+  if (!timeRangeStr) return { start: '10:00', end: '11:30' };
+  const parts = timeRangeStr.split(/-|to/i);
+  const start12 = parts[0] ? parts[0].trim() : '';
+  const end12 = parts[1] ? parts[1].trim() : '';
+  return {
+    start: time12hTo24(start12) || '10:00',
+    end: time12hTo24(end12) || '11:30'
+  };
+}
+
 export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, existingConfig, onClose, onSave }) {
   const [targetState, setTargetState] = useState('CR');
   const [sessions, setSessions] = useState([]);
@@ -242,11 +279,63 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
                       />
                     </div>
 
-                    {/* Session Time Field with Presets */}
+                    {/* Session Time Field with Clock Pickers & Presets */}
                     <div className="form-group" style={{ marginBottom: '1rem' }}>
-                      <label htmlFor={`sess_time_${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.84rem' }}>
-                        <Clock size={14} color="#E52E06" /> Session Time <span style={{ color: '#E52E06' }}>*</span>
+                      <label htmlFor={`sess_time_${idx}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Clock size={14} color="#E52E06" /> Session Time Range <span style={{ color: '#E52E06' }}>*</span>
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Pick clock time or use preset</span>
                       </label>
+
+                      {/* Clock Time Pickers (Start & End Time) */}
+                      {(() => {
+                        const times24 = extractStartEnd24h(sess.sessionTime);
+
+                        const handleClockChange = (newVal, type) => {
+                          let s24 = times24.start;
+                          let e24 = times24.end;
+                          if (type === 'start') s24 = newVal;
+                          if (type === 'end') e24 = newVal;
+                          const formatted12h = `${time24To12h(s24)} - ${time24To12h(e24)}`;
+                          handleUpdateSessionField(idx, 'sessionTime', formatted12h);
+                        };
+
+                        return (
+                          <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', padding: '0.65rem 0.85rem', borderRadius: '10px', marginBottom: '0.6rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                              <div style={{ flex: 1, minWidth: '130px' }}>
+                                <label style={{ fontSize: '0.73rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '0.25rem' }}>
+                                  🕒 Start Time (Clock)
+                                </label>
+                                <input
+                                  type="time"
+                                  className="input-control"
+                                  value={times24.start}
+                                  onChange={(e) => handleClockChange(e.target.value, 'start')}
+                                  style={{ fontWeight: 800, padding: '0.45rem 0.65rem', fontSize: '0.88rem', background: '#FFFFFF', border: '1.5px solid #CBD5E1', borderRadius: '8px', width: '100%', cursor: 'pointer' }}
+                                />
+                              </div>
+
+                              <div style={{ fontWeight: 800, color: '#E52E06', marginTop: '0.85rem', fontSize: '1rem' }}>➔</div>
+
+                              <div style={{ flex: 1, minWidth: '130px' }}>
+                                <label style={{ fontSize: '0.73rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '0.25rem' }}>
+                                  🕓 End Time (Clock)
+                                </label>
+                                <input
+                                  type="time"
+                                  className="input-control"
+                                  value={times24.end}
+                                  onChange={(e) => handleClockChange(e.target.value, 'end')}
+                                  style={{ fontWeight: 800, padding: '0.45rem 0.65rem', fontSize: '0.88rem', background: '#FFFFFF', border: '1.5px solid #CBD5E1', borderRadius: '8px', width: '100%', cursor: 'pointer' }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <input
                         type="text"
                         id={`sess_time_${idx}`}
@@ -258,8 +347,8 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
                       />
 
                       {/* Quick Presets */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.45rem' }}>
-                        <span style={{ fontSize: '0.72rem', color: '#64748B', alignSelf: 'center', marginRight: '0.2rem' }}>Presets:</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.45rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginRight: '0.2rem' }}>Quick Presets:</span>
                         {TIME_PRESETS.map((pTime) => (
                           <button
                             key={pTime}
