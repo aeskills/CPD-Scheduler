@@ -400,8 +400,10 @@ export default function SchedulerPage() {
 
           <div class="calendar-days">
             {prevMonthDays.map(prevNum => (
-              <div key={`prev-${prevNum}`} class="day-cell other-month">
-                <span class="day-number">{prevNum}</span>
+              <div key={`prev-${prevNum}`} className="day-cell other-month">
+                <div className="day-header">
+                  <span className="day-number">{prevNum}</span>
+                </div>
               </div>
             ))}
 
@@ -516,7 +518,9 @@ export default function SchedulerPage() {
 
             {nextMonthDays.map(nextNum => (
               <div key={`next-${nextNum}`} className="day-cell other-month">
-                <span className="day-number">{nextNum}</span>
+                <div className="day-header">
+                  <span className="day-number">{nextNum}</span>
+                </div>
               </div>
             ))}
           </div>
