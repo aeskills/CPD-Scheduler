@@ -381,16 +381,19 @@
       border-top: none;
       border-bottom-left-radius: var(--radius-lg);
       border-bottom-right-radius: var(--radius-lg);
-      overflow: hidden;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       box-shadow: var(--shadow-md);
+      width: 100%;
     }
 
     .calendar-weekdays {
       display: grid;
-      grid-template-columns: repeat(7, 14.2857%);
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       background: #F8FAFC;
       border-bottom: 1px solid var(--border-color);
       text-align: center;
+      min-width: 680px;
     }
 
     .weekday {
@@ -400,19 +403,23 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-muted);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .calendar-days {
       display: grid;
-      grid-template-columns: repeat(7, 14.2857%);
-      gap: 1px;
-      background: var(--border-color);
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      min-width: 680px;
+      background: #FFFFFF;
     }
 
     .day-cell {
       background: #FFFFFF;
       min-height: 120px;
-      padding: 0.75rem;
+      padding: 0.6rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -423,7 +430,13 @@
       max-width: 100%;
       width: 100%;
       word-break: break-word;
+      border-right: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
       transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .day-cell:nth-child(7n) {
+      border-right: none;
     }
 
     .day-cell.other-month {
@@ -431,10 +444,25 @@
       opacity: 0.5;
     }
 
+    .day-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.3rem;
+      width: 100%;
+      min-width: 0;
+    }
+
     .day-number {
-      font-size: 1rem;
+      font-size: 0.92rem;
       font-weight: 700;
       color: var(--text-muted);
+      min-width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
 
     /* Today Highlight */
@@ -1557,7 +1585,7 @@
         const prevDayNum = prevMonthTotalDays - i;
         const dayCell = document.createElement('div');
         dayCell.className = 'day-cell other-month';
-        dayCell.innerHTML = `<span class="day-number">${prevDayNum}</span>`;
+        dayCell.innerHTML = `<div class="day-header"><span class="day-number">${prevDayNum}</span></div>`;
         calendarDaysGrid.appendChild(dayCell);
       }
 
@@ -1574,7 +1602,7 @@
         let classes = ['day-cell'];
         if (isToday) classes.push('is-today');
 
-        let cellContent = `<span class="day-number">${day}</span>`;
+        let cellContent = `<div class="day-header"><span class="day-number">${day}</span></div>`;
 
         let list = bookedSlots[dateStr] || [];
         
@@ -1667,7 +1695,7 @@
       for (let j = 1; j <= nextDaysNeeded; j++) {
         const dayCell = document.createElement('div');
         dayCell.className = 'day-cell other-month';
-        dayCell.innerHTML = `<span class="day-number">${j}</span>`;
+        dayCell.innerHTML = `<div class="day-header"><span class="day-number">${j}</span></div>`;
         calendarDaysGrid.appendChild(dayCell);
       }
     }
