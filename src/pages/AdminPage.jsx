@@ -82,11 +82,12 @@ export default function AdminPage() {
   };
 
   const handleSaveConfig = async (data) => {
-    const { dateStr, state, sessions, sessionName, sessionTime, tutorialLink, slotStatus, teachersPresent } = data;
+    const { dateStr, state, sessions, organiserName, sessionName, sessionTime, tutorialLink, slotStatus, teachersPresent } = data;
     const stKey = state + '_' + dateStr;
 
     const newConfig = {
       sessions: sessions || [],
+      organiserName: organiserName || '',
       sessionName: sessionName || '',
       sessionTime: sessionTime || '',
       tutorialLink: tutorialLink || '',
@@ -107,6 +108,8 @@ export default function AdminPage() {
       action: 'saveSessionConfig',
       sessionDate: dateStr,
       state: state,
+      sessions: JSON.stringify(sessions || []),
+      organiserName: organiserName,
       sessionName: sessionName,
       sessionTime: sessionTime,
       tutorialLink: tutorialLink,
@@ -380,8 +383,13 @@ export default function AdminPage() {
                             }}
                           >
                             <div style={{ fontWeight: 800, fontSize: '0.74rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isEnded ? '#64748B' : '#0F172A' }}>
-                              {isEnded ? '⚫' : '🏷️'} {sess.sessionName}
+                              {isEnded ? '⚫' : '🏷️'} {sess.sessionName || 'CPD Session'}
                             </div>
+                            {sess.organiserName && (
+                              <div style={{ fontSize: '0.67rem', color: isEnded ? '#94A3B8' : '#00897B', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                👤 {sess.organiserName}
+                              </div>
+                            )}
                             {sess.sessionTime && (
                               <div style={{ fontSize: '0.68rem', color: isEnded ? '#94A3B8' : '#64748B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
                                 ⏰ {sess.sessionTime} {isEnded && <span style={{ color: '#475569', fontWeight: 800 }}>(Ended)</span>}

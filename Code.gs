@@ -5,9 +5,9 @@
  * Professional Multi-State Architecture (v3 — Multi-Session per Date):
  *
  * 1. Admin Sessions Sheet ("Admin Sessions"):
- *    Row 1: Merged State Headers (7 columns each)
+ *    Row 1: Merged State Headers (8 columns each)
  *    Row 2: Sub-headers per state:
- *       Timestamp | Session Date | Session Name | Session Time | Tutorial Link | Slot Status | Total Teacher Present in Session
+ *       Timestamp | Session Date | Organiser Name | Session Name | Session Time | Tutorial Link | Slot Status | Total Teacher Present in Session
  *    Row 3+: One row PER session. Same date can have multiple rows (= multiple sessions on that day).
  *
  * 2. Per-State Booking Tabs:
@@ -24,7 +24,7 @@ const SHEET_BOOKINGS_NAME = 'CPD Bookings';
 const SHEET_ADMIN_TAB_NAME = 'Admin Sessions';
 const DEFAULT_TEAMS_MEETING_LINK = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_CPDSession_AEskills%40thread.v2/0';
 
-const COLS_PER_STATE = 7;
+const COLS_PER_STATE = 8;
 
 const STATE_TAB_MAP = {
   'CR': 'CPD Bookings (Chain/Retail)',
@@ -35,17 +35,17 @@ const STATE_TAB_MAP = {
   'GJ': 'CPD Bookings (GJ)'
 };
 
-// 7 columns per state (1-indexed column offsets)
+// 8 columns per state (1-indexed column offsets)
 const STATE_COL_OFFSETS = {
-  'CR': 1,   // A-G   (cols 1–7)
-  'UP': 8,   // H-N   (cols 8–14)
-  'GA': 15,  // O-U   (cols 15–21)
-  'DL': 22,  // V-AB  (cols 22–28)
-  'UT': 29,  // AC-AI (cols 29–35)
-  'GJ': 36   // AJ-AP (cols 36–42)
+  'CR': 1,   // A-H   (cols 1–8)
+  'UP': 9,   // I-P   (cols 9–16)
+  'GA': 17,  // Q-X   (cols 17–24)
+  'DL': 25,  // Y-AF  (cols 25–32)
+  'UT': 33,  // AG-AN (cols 33–40)
+  'GJ': 41   // AO-AV (cols 41–48)
 };
 
-const TOTAL_ADMIN_COLS = 42; // 6 states × 7 columns
+const TOTAL_ADMIN_COLS = 48; // 6 states × 8 columns
 
 /**
  * Handle incoming GET requests
@@ -168,6 +168,7 @@ function doPost(e) {
       // Fallback: single session from legacy fields
       if (sessionsToSave.length === 0) {
         sessionsToSave.push({
+          organiserName: safeString(payload.organiserName) || '',
           sessionName: safeString(payload.sessionName) || 'CPD Session',
           sessionTime: safeString(payload.sessionTime) || '',
           tutorialLink: safeString(payload.tutorialLink) || '',
@@ -390,23 +391,25 @@ function fetchAdminSessionsMap() {
       const st = stateKeys[sIdx];
       const colOffset = STATE_COL_OFFSETS[st] - 1; // 0-indexed
 
-      // 7 columns: [0]=Timestamp [1]=Date [2]=SessionName [3]=SessionTime [4]=TutorialLink [5]=SlotStatus [6]=TeachersPresent
+      // 8 columns: [0]=Timestamp [1]=Date [2]=OrganiserName [3]=SessionName [4]=SessionTime [5]=TutorialLink [6]=SlotStatus [7]=TeachersPresent
       let rDate = row[colOffset + 1];
-      const sessionName   = safeString(row[colOffset + 2]);
-      const sessionTime   = safeString(row[colOffset + 3]);
-      const tutorialLink  = safeString(row[colOffset + 4]);
-      const slotStatus    = safeString(row[colOffset + 5]) || 'SCHEDULE';
-      const teachersPresent = safeString(row[colOffset + 6]);
+      const organiserName = safeString(row[colOffset + 2]);
+      const sessionName   = safeString(row[colOffset + 3]);
+      const sessionTime   = safeString(row[colOffset + 4]);
+      const tutorialLink  = safeString(row[colOffset + 5]);
+      const slotStatus    = safeString(row[colOffset + 6]) || 'SCHEDULE';
+      const teachersPresent = safeString(row[colOffset + 7]);
 
       if (rDate) {
         rDate = formatDateISO(rDate);
 
-        if (rDate && rDate.length >= 10 && sessionName) {
+        if (rDate && rDate.length >= 10 && (sessionName || organiserName)) {
           const cleanDate = rDate.substring(0, 10);
           const key = st + '_' + cleanDate;
 
           const sessionObj = {
             id: 's_' + r + '_' + sIdx,
+            organiserName: organiserName,
             sessionName: sessionName,
             sessionTime: sessionTime,
             tutorialLink: tutorialLink,
@@ -418,6 +421,7 @@ function fetchAdminSessionsMap() {
             // First session for this state+date
             map[key] = {
               sessions: [sessionObj],
+              organiserName: organiserName,
               sessionName: sessionName,
               sessionTime: sessionTime,
               tutorialLink: tutorialLink,
@@ -470,6 +474,7 @@ function saveAdminSessionsToSheet(dateStr, sessionsArray, state) {
   // Step 2: Write each session into its own row
   for (let i = 0; i < sessionsArray.length; i++) {
     const sess = sessionsArray[i];
+    const sOrg    = safeString(sess.organiserName) || '';
     const sName   = safeString(sess.sessionName) || 'CPD Session';
     const sTime   = safeString(sess.sessionTime) || '';
     const sLink   = safeString(sess.tutorialLink) || '';
@@ -497,14 +502,16 @@ function saveAdminSessionsToSheet(dateStr, sessionsArray, state) {
       }
     }
 
-    // Write 7 columns: Timestamp | Date | Name | Time | Link | Status | Teachers
+    // Write 8 columns: Timestamp | Date | Organiser Name | Name | Time | Link | Status | Teachers
+
     sheet.getRange(targetRow, colOffset).setValue(timestamp);
     sheet.getRange(targetRow, colOffset + 1).setValue(dateStr);
-    sheet.getRange(targetRow, colOffset + 2).setValue(sName);
-    sheet.getRange(targetRow, colOffset + 3).setValue(sTime);
-    sheet.getRange(targetRow, colOffset + 4).setValue(sLink);
-    sheet.getRange(targetRow, colOffset + 5).setValue(sStatus);
-    sheet.getRange(targetRow, colOffset + 6).setValue(sTeach);
+    sheet.getRange(targetRow, colOffset + 2).setValue(sOrg);
+    sheet.getRange(targetRow, colOffset + 3).setValue(sName);
+    sheet.getRange(targetRow, colOffset + 4).setValue(sTime);
+    sheet.getRange(targetRow, colOffset + 5).setValue(sLink);
+    sheet.getRange(targetRow, colOffset + 6).setValue(sStatus);
+    sheet.getRange(targetRow, colOffset + 7).setValue(sTeach);
   }
 
   formatSheetColumns(sheet, TOTAL_ADMIN_COLS);
@@ -670,15 +677,15 @@ function setupAdminSessionsLayout() {
     sheet = ss.insertSheet(SHEET_ADMIN_TAB_NAME);
   }
 
-  // Ensure sheet has at least 42 columns
+  // Ensure sheet has at least 48 columns
   const maxCols = sheet.getMaxColumns();
   if (maxCols < TOTAL_ADMIN_COLS) {
     sheet.insertColumnsAfter(maxCols, TOTAL_ADMIN_COLS - maxCols);
   }
 
-  // Check if headers need upgrade by looking for "Session Time" in the expected position
-  const col4Val = safeString(sheet.getRange(2, 4).getValue());
-  const needsHeaderUpdate = (sheet.getLastRow() < 2) || (col4Val !== 'Session Time');
+  // Check if headers need upgrade by looking for "Organiser Name" in the 3rd column
+  const col3Val = safeString(sheet.getRange(2, 3).getValue());
+  const needsHeaderUpdate = (sheet.getLastRow() < 2) || (col3Val !== 'Organiser Name');
 
   if (needsHeaderUpdate) {
     runHeaderUpgrade();
@@ -688,11 +695,11 @@ function setupAdminSessionsLayout() {
 }
 
 /**
- * Upgrade headers to 7-column-per-state layout (42 columns total)
+ * Upgrade headers to 8-column-per-state layout (48 columns total)
  * Run this directly in Apps Script Editor if you need to manually upgrade.
  *
- * Layout per state (7 cols):
- *   Timestamp | Session Date | Session Name | Session Time | Tutorial Link | Slot Status | Total Teacher Present in Session
+ * Layout per state (8 cols):
+ *   Timestamp | Session Date | Organiser Name | Session Name | Session Time | Tutorial Link | Slot Status | Total Teacher Present in Session
  */
 function runHeaderUpgrade() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -701,7 +708,7 @@ function runHeaderUpgrade() {
     sheet = ss.insertSheet(SHEET_ADMIN_TAB_NAME);
   }
 
-  // Ensure 42 columns
+  // Ensure 48 columns
   const maxCols = sheet.getMaxColumns();
   if (maxCols < TOTAL_ADMIN_COLS) {
     sheet.insertColumnsAfter(maxCols, TOTAL_ADMIN_COLS - maxCols);
@@ -715,10 +722,10 @@ function runHeaderUpgrade() {
   const stateDisplayNames = ['Chain/Retail', 'UP', 'Goa', 'Delhi', 'Uttarakhand', 'Gujarat'];
   const subHeaders = [];
   for (let i = 0; i < 6; i++) {
-    subHeaders.push('Timestamp', 'Session Date', 'Session Name', 'Session Time', 'Tutorial Link', 'Slot Status', 'Total Teacher Present in Session');
+    subHeaders.push('Timestamp', 'Session Date', 'Organiser Name', 'Session Name', 'Session Time', 'Tutorial Link', 'Slot Status', 'Total Teacher Present in Session');
   }
 
-  // Merge 7 columns per state in Row 1
+  // Merge 8 columns per state in Row 1
   for (let i = 0; i < 6; i++) {
     const startCol = i * COLS_PER_STATE + 1;
     const range = sheet.getRange(1, startCol, 1, COLS_PER_STATE);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Clock, Link2, Tag, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, Clock, Link2, Tag, AlertCircle, User } from 'lucide-react';
 import { normalizeSessions, isSessionExpired, getSessionEffectiveStatus } from '../utils/sessionUtils';
 
 export { normalizeSessions, isSessionExpired, getSessionEffectiveStatus };
@@ -66,6 +66,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       if (norm.length === 0) {
         setSessions([{
           id: 's_' + Date.now(),
+          organiserName: '',
           sessionName: '',
           sessionTime: '10:00 AM - 11:30 AM',
           tutorialLink: '',
@@ -103,6 +104,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       ...prev,
       {
         id: 's_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+        organiserName: prev[0]?.organiserName || '',
         sessionName: '',
         sessionTime: prev.length === 1 ? '02:00 PM - 03:30 PM' : '04:00 PM - 05:30 PM',
         tutorialLink: prev[0]?.tutorialLink || '',
@@ -130,7 +132,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
     setIsSaving(true);
     
     // Filter out completely blank sessions
-    const validSessions = sessions.filter(s => s.sessionName.trim().length > 0);
+    const validSessions = sessions.filter(s => (s.sessionName || '').trim().length > 0 || (s.organiserName || '').trim().length > 0);
     const finalSessions = validSessions.length > 0 ? validSessions : sessions;
 
     await onSave({
@@ -138,6 +140,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       state: targetState,
       sessions: finalSessions,
       // For backwards compatibility:
+      organiserName: finalSessions[0]?.organiserName?.trim() || '',
       sessionName: finalSessions[0]?.sessionName?.trim() || '',
       sessionTime: finalSessions[0]?.sessionTime?.trim() || '',
       tutorialLink: finalSessions[0]?.tutorialLink?.trim() || '',
@@ -179,6 +182,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       dateStr,
       state: targetState,
       sessions: updatedSessions,
+      organiserName: updatedSessions[0]?.organiserName?.trim() || '',
       sessionName: updatedSessions[0]?.sessionName?.trim() || 'CPD Session',
       sessionTime: updatedSessions[0]?.sessionTime?.trim() || '',
       tutorialLink: updatedSessions[0]?.tutorialLink?.trim() || '',
@@ -262,6 +266,21 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
                         <Clock size={13} color="#64748B" /> Time Passed: This session has automatically ended.
                       </div>
                     )}
+
+                    {/* Organiser Name */}
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                      <label htmlFor={`sess_org_${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.84rem' }}>
+                        <User size={14} color="#E52E06" /> Organiser Name
+                      </label>
+                      <input
+                        type="text"
+                        id={`sess_org_${idx}`}
+                        className="input-control"
+                        placeholder="e.g. John Doe / AE Skills Team"
+                        value={sess.organiserName || ''}
+                        onChange={(e) => handleUpdateSessionField(idx, 'organiserName', e.target.value)}
+                      />
+                    </div>
 
                     {/* Session Name */}
                     <div className="form-group" style={{ marginBottom: '1rem' }}>
