@@ -373,6 +373,26 @@ function sendConfirmationEmail(details) {
 // ADMIN SESSIONS SHEET — 7 Columns per State, Multi-Row per Date
 // ═══════════════════════════════════════════════════════════════
 
+function isTimeRangeStr(str) {
+  if (!str) return false;
+  const s = String(str).trim().toUpperCase();
+  if (s.indexOf('AM') !== -1 || s.indexOf('PM') !== -1) return true;
+  if (/\d{1,2}:\d{2}/.test(s) && (s.indexOf('-') !== -1 || s.indexOf('TO') !== -1)) return true;
+  return false;
+}
+
+function isUrlStr(str) {
+  if (!str) return false;
+  const s = String(str).trim().toLowerCase();
+  return s.indexOf('http://') === 0 || s.indexOf('https://') === 0;
+}
+
+function isStatusStr(str) {
+  if (!str) return false;
+  const s = String(str).trim().toUpperCase();
+  return s === 'SCHEDULE' || s === 'FILLING_FAST' || s === 'SLOT_FULL' || s === 'SESSION_COMPLETED';
+}
+
 /**
  * Fetch all admin session configs, grouped by state_date.
  * Multiple rows with the same date for the same state = multiple sessions.
@@ -391,14 +411,30 @@ function fetchAdminSessionsMap() {
       const st = stateKeys[sIdx];
       const colOffset = STATE_COL_OFFSETS[st] - 1; // 0-indexed
 
-      // 8 columns: [0]=Timestamp [1]=Date [2]=OrganiserName [3]=SessionName [4]=SessionTime [5]=TutorialLink [6]=SlotStatus [7]=TeachersPresent
       let rDate = row[colOffset + 1];
-      const organiserName = safeString(row[colOffset + 2]) || 'Surbhi Tyagi';
-      const sessionName   = safeString(row[colOffset + 3]);
-      const sessionTime   = safeString(row[colOffset + 4]);
-      const tutorialLink  = safeString(row[colOffset + 5]);
-      const slotStatus    = safeString(row[colOffset + 6]) || 'SCHEDULE';
-      const teachersPresent = safeString(row[colOffset + 7]);
+      let v2 = safeString(row[colOffset + 2]);
+      let v3 = safeString(row[colOffset + 3]);
+      let v4 = safeString(row[colOffset + 4]);
+      let v5 = safeString(row[colOffset + 5]);
+      let v6 = safeString(row[colOffset + 6]);
+      let v7 = safeString(row[colOffset + 7]);
+
+      let organiserName = v2 || 'Surbhi Tyagi';
+      let sessionName   = v3;
+      let sessionTime   = v4;
+      let tutorialLink  = v5;
+      let slotStatus    = v6 || 'SCHEDULE';
+      let teachersPresent = v7;
+
+      // Auto-detect legacy 7-column shift: v3 is time range OR v4 is URL OR v5 is status
+      if (isTimeRangeStr(v3) || isUrlStr(v4) || isStatusStr(v5)) {
+        sessionName = v2;
+        sessionTime = v3;
+        tutorialLink = isUrlStr(v4) ? v4 : (isUrlStr(v5) ? v5 : '');
+        slotStatus = isStatusStr(v5) ? v5 : (isStatusStr(v6) ? v6 : 'SCHEDULE');
+        teachersPresent = v6;
+        organiserName = 'Surbhi Tyagi';
+      }
 
       if (rDate) {
         rDate = formatDateISO(rDate);
@@ -689,6 +725,7 @@ function setupAdminSessionsLayout() {
 
   if (needsHeaderUpdate) {
     runHeaderUpgrade();
+    migrateAdminSessionsSheetTo8Cols();
   }
 
   return sheet;
@@ -861,10 +898,55 @@ function autoMigrateSheetSchema() {
 }
 
 /**
+ * Standalone Migration: Automatically shifts existing 7-column rows in Admin Sessions sheet into clean 8-column layout.
+ */
+function migrateAdminSessionsSheetTo8Cols() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_ADMIN_TAB_NAME);
+  if (!sheet) return;
+
+  setupAdminSessionsLayout();
+
+  const data = sheet.getDataRange().getValues();
+  const stateKeys = ['CR', 'UP', 'GA', 'DL', 'UT', 'GJ'];
+
+  for (let r = 2; r < data.length; r++) {
+    const row = data[r];
+    for (let sIdx = 0; sIdx < stateKeys.length; sIdx++) {
+      const st = stateKeys[sIdx];
+      const colOffset = STATE_COL_OFFSETS[st]; // 1-indexed
+
+      let rDate = row[colOffset];
+      let v2 = safeString(row[colOffset + 1]);
+      let v3 = safeString(row[colOffset + 2]);
+      let v4 = safeString(row[colOffset + 3]);
+      let v5 = safeString(row[colOffset + 4]);
+      let v6 = safeString(row[colOffset + 5]);
+
+      if (rDate && (isTimeRangeStr(v3) || isUrlStr(v4) || isStatusStr(v5))) {
+        const actualName = v2;
+        const actualTime = v3;
+        const actualLink = isUrlStr(v4) ? v4 : (isUrlStr(v5) ? v5 : '');
+        const actualStatus = isStatusStr(v5) ? v5 : (isStatusStr(v6) ? v6 : 'SCHEDULE');
+        const actualTeachers = v6;
+
+        sheet.getRange(r + 1, colOffset + 2).setValue('Surbhi Tyagi');
+        sheet.getRange(r + 1, colOffset + 3).setValue(actualName);
+        sheet.getRange(r + 1, colOffset + 4).setValue(actualTime);
+        sheet.getRange(r + 1, colOffset + 5).setValue(actualLink);
+        sheet.getRange(r + 1, colOffset + 6).setValue(actualStatus);
+        sheet.getRange(r + 1, colOffset + 7).setValue(actualTeachers);
+      }
+    }
+  }
+}
+
+/**
  * Standalone Menu Function: Run directly in Apps Script Editor to upgrade everything.
  */
 function runAutoMigration() {
   autoMigrateSheetSchema();
   setupAdminSessionsLayout();
-  Logger.log('Migration completed successfully. Admin Sessions upgraded to 7-column layout with Session Time column.');
+  migrateAdminSessionsSheetTo8Cols();
+  Logger.log('Migration completed successfully. Admin Sessions upgraded and existing data converted to 8-column layout with Surbhi Tyagi as default organiser.');
 }
