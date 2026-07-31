@@ -1125,29 +1125,79 @@
     let activeEditingSessions = [];
 
     // Session Normalization & Auto-Expiration Utilities
+    function isTimeRangeString(str) {
+      if (!str || typeof str !== 'string') return false;
+      const clean = str.trim().toUpperCase();
+      if (clean.includes('AM') || clean.includes('PM')) return true;
+      if (/\d{1,2}:\d{2}/.test(clean) && (clean.includes('-') || clean.includes('TO'))) return true;
+      return false;
+    }
+
+    function isUrlString(str) {
+      if (!str || typeof str !== 'string') return false;
+      const clean = str.trim().toLowerCase();
+      return clean.startsWith('http://') || clean.startsWith('https://');
+    }
+
+    function isStatusString(str) {
+      if (!str || typeof str !== 'string') return false;
+      const clean = str.trim().toUpperCase();
+      return ['SCHEDULE', 'FILLING_FAST', 'SLOT_FULL', 'SESSION_COMPLETED'].includes(clean);
+    }
+
+    function cleanSessionObject(raw, idx, configDefaultOrg) {
+      let org   = raw.organiserName || '';
+      let name  = raw.sessionName || '';
+      let time  = raw.sessionTime || '';
+      let link  = raw.tutorialLink || '';
+      let status = raw.slotStatus || 'SCHEDULE';
+      let teachers = raw.teachersPresent || '';
+
+      // Detect column shift from legacy 7-column layout
+      if (isTimeRangeString(name) || isUrlString(time) || isStatusString(link)) {
+        const actualName = org;
+        const actualTime = name;
+        const actualLink = isUrlString(time) ? time : (isUrlString(link) ? link : '');
+        const actualStatus = isStatusString(link) ? link : (isStatusString(status) ? status : 'SCHEDULE');
+
+        name = actualName;
+        time = actualTime;
+        link = actualLink;
+        status = actualStatus;
+        org = configDefaultOrg || 'Surbhi Tyagi';
+      } else if (!org || org === name) {
+        org = configDefaultOrg || 'Surbhi Tyagi';
+      }
+
+      return {
+        id: raw.id || ('s_' + idx + '_' + Date.now()),
+        organiserName: org || 'Surbhi Tyagi',
+        sessionName: name || '',
+        sessionTime: time || '',
+        tutorialLink: link || '',
+        slotStatus: status || 'SCHEDULE',
+        teachersPresent: teachers || ''
+      };
+    }
+
     function normalizeSessions(config) {
       if (!config) return [];
+      const defaultOrg = config.organiserName || 'Surbhi Tyagi';
+
       if (Array.isArray(config.sessions) && config.sessions.length > 0) {
-        return config.sessions.map((s, idx) => ({
-          id: s.id || ('s_' + idx + '_' + Date.now()),
-          organiserName: s.organiserName || config.organiserName || 'Surbhi Tyagi',
-          sessionName: s.sessionName || '',
-          sessionTime: s.sessionTime || '',
-          tutorialLink: s.tutorialLink || config.tutorialLink || '',
-          slotStatus: s.slotStatus || 'SCHEDULE',
-          teachersPresent: s.teachersPresent || ''
-        }));
+        return config.sessions.map((s, idx) => cleanSessionObject(s, idx, defaultOrg));
       }
+
       if (config.sessionName || config.organiserName) {
-        return [{
+        return [cleanSessionObject({
           id: 's_default',
-          organiserName: config.organiserName || 'Surbhi Tyagi',
+          organiserName: config.organiserName || '',
           sessionName: config.sessionName || '',
           sessionTime: config.sessionTime || '',
           tutorialLink: config.tutorialLink || '',
           slotStatus: config.slotStatus || 'SCHEDULE',
           teachersPresent: config.teachersPresent || ''
-        }];
+        }, 0, defaultOrg)];
       }
       return [];
     }
