@@ -66,7 +66,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       if (norm.length === 0) {
         setSessions([{
           id: 's_' + Date.now(),
-          organiserName: '',
+          organiserName: 'Surbhi Tyagi',
           sessionName: '',
           sessionTime: '10:00 AM - 11:30 AM',
           tutorialLink: '',
@@ -104,7 +104,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       ...prev,
       {
         id: 's_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
-        organiserName: prev[0]?.organiserName || '',
+        organiserName: prev[0]?.organiserName || 'Surbhi Tyagi',
         sessionName: '',
         sessionTime: prev.length === 1 ? '02:00 PM - 03:30 PM' : '04:00 PM - 05:30 PM',
         tutorialLink: prev[0]?.tutorialLink || '',
@@ -140,7 +140,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       state: targetState,
       sessions: finalSessions,
       // For backwards compatibility:
-      organiserName: finalSessions[0]?.organiserName?.trim() || '',
+      organiserName: finalSessions[0]?.organiserName?.trim() || 'Surbhi Tyagi',
       sessionName: finalSessions[0]?.sessionName?.trim() || '',
       sessionTime: finalSessions[0]?.sessionTime?.trim() || '',
       tutorialLink: finalSessions[0]?.tutorialLink?.trim() || '',
@@ -182,7 +182,7 @@ export default function AdminConfigModal({ isOpen, dateStr, currentAdminState, e
       dateStr,
       state: targetState,
       sessions: updatedSessions,
-      organiserName: updatedSessions[0]?.organiserName?.trim() || '',
+      organiserName: updatedSessions[0]?.organiserName?.trim() || 'Surbhi Tyagi',
       sessionName: updatedSessions[0]?.sessionName?.trim() || 'CPD Session',
       sessionTime: updatedSessions[0]?.sessionTime?.trim() || '',
       tutorialLink: updatedSessions[0]?.tutorialLink?.trim() || '',

@@ -168,7 +168,7 @@ function doPost(e) {
       // Fallback: single session from legacy fields
       if (sessionsToSave.length === 0) {
         sessionsToSave.push({
-          organiserName: safeString(payload.organiserName) || '',
+          organiserName: safeString(payload.organiserName) || 'Surbhi Tyagi',
           sessionName: safeString(payload.sessionName) || 'CPD Session',
           sessionTime: safeString(payload.sessionTime) || '',
           tutorialLink: safeString(payload.tutorialLink) || '',
@@ -393,7 +393,7 @@ function fetchAdminSessionsMap() {
 
       // 8 columns: [0]=Timestamp [1]=Date [2]=OrganiserName [3]=SessionName [4]=SessionTime [5]=TutorialLink [6]=SlotStatus [7]=TeachersPresent
       let rDate = row[colOffset + 1];
-      const organiserName = safeString(row[colOffset + 2]);
+      const organiserName = safeString(row[colOffset + 2]) || 'Surbhi Tyagi';
       const sessionName   = safeString(row[colOffset + 3]);
       const sessionTime   = safeString(row[colOffset + 4]);
       const tutorialLink  = safeString(row[colOffset + 5]);
@@ -474,7 +474,7 @@ function saveAdminSessionsToSheet(dateStr, sessionsArray, state) {
   // Step 2: Write each session into its own row
   for (let i = 0; i < sessionsArray.length; i++) {
     const sess = sessionsArray[i];
-    const sOrg    = safeString(sess.organiserName) || '';
+    const sOrg    = safeString(sess.organiserName) || 'Surbhi Tyagi';
     const sName   = safeString(sess.sessionName) || 'CPD Session';
     const sTime   = safeString(sess.sessionTime) || '';
     const sLink   = safeString(sess.tutorialLink) || '';

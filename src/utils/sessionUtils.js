@@ -10,7 +10,7 @@ export function normalizeSessions(config) {
   if (Array.isArray(config.sessions) && config.sessions.length > 0) {
     return config.sessions.map((s, idx) => ({
       id: s.id || `s_${idx}_${Date.now()}`,
-      organiserName: s.organiserName || config.organiserName || '',
+      organiserName: s.organiserName || config.organiserName || 'Surbhi Tyagi',
       sessionName: s.sessionName || '',
       sessionTime: s.sessionTime || '',
       tutorialLink: s.tutorialLink || config.tutorialLink || '',
@@ -21,7 +21,7 @@ export function normalizeSessions(config) {
   if (config.sessionName || config.organiserName) {
     return [{
       id: 's_default',
-      organiserName: config.organiserName || '',
+      organiserName: config.organiserName || 'Surbhi Tyagi',
       sessionName: config.sessionName || '',
       sessionTime: config.sessionTime || '',
       tutorialLink: config.tutorialLink || '',
