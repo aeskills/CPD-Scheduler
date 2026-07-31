@@ -1607,6 +1607,21 @@
               </div>
             ` : ''}
 
+            <!-- Organiser Name -->
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 700; color: #0F172A;">
+                👤 Organiser Name
+              </label>
+              <input
+                type="text"
+                class="input-control"
+                placeholder="e.g. John Doe / AE Skills Team"
+                value="${escapeHtml(sess.organiserName || '')}"
+                oninput="updateSessionItem(${idx}, 'organiserName', this.value)"
+                ${isCompleted ? 'disabled' : ''}
+              />
+            </div>
+
             <!-- Session Name -->
             <div class="form-group" style="margin-bottom: 1rem;">
               <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 700; color: #0F172A;">
@@ -1794,6 +1809,7 @@
       const dateStr = document.getElementById('configDateKey').value;
       activeEditingSessions.push({
         id: 's_' + Date.now(),
+        organiserName: activeEditingSessions[0]?.organiserName || '',
         sessionName: '',
         sessionTime: '10:00 AM - 11:30 AM',
         tutorialLink: '',
@@ -1821,6 +1837,7 @@
       if (norm.length === 0) {
         activeEditingSessions = [{
           id: 's_' + Date.now(),
+          organiserName: '',
           sessionName: '',
           sessionTime: '10:00 AM - 11:30 AM',
           tutorialLink: '',
@@ -2117,6 +2134,7 @@
         const primarySession = activeEditingSessions[0] || {};
         const configObj = {
           sessions: activeEditingSessions,
+          organiserName: primarySession.organiserName || '',
           sessionName: primarySession.sessionName || 'CPD Session',
           sessionTime: primarySession.sessionTime || '',
           tutorialLink: primarySession.tutorialLink || '',
@@ -2144,7 +2162,9 @@
                 action: 'saveSessionConfig',
                 sessionDate: dateStr,
                 state: state,
+                organiserName: configObj.organiserName,
                 sessionName: configObj.sessionName,
+                sessionTime: configObj.sessionTime,
                 tutorialLink: configObj.tutorialLink,
                 slotStatus: configObj.slotStatus,
                 teachersPresent: configObj.teachersPresent,
